@@ -36,6 +36,14 @@ class Settings(BaseSettings):
     port: int = 8000
     log_level: str = "info"
 
+    api_key: str | None = Field(
+        default=None,
+        description=(
+            "Optional API key for FastAPI endpoints. If set, requests to /api/v1/* must "
+            "include matching X-API-Key header."
+        ),
+    )
+
     forbidden_phrases: list[str] = Field(default_factory=lambda: list(_DEFAULT_FORBIDDEN_PHRASES))
     pii_patterns_enabled: list[str] = Field(default_factory=lambda: ["email", "phone", "ssn"])
 

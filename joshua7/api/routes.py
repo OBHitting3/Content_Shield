@@ -2,12 +2,25 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
+from joshua7.config import Settings, get_settings
 from joshua7.engine import ValidationEngine
 from joshua7.models import ValidationRequest, ValidationResponse
 
 router = APIRouter(tags=["validation"])
+
+
+def verify_api_key(
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    """Optional API key auth for /api/v1 endpoints.
+
+    If `J7_API_KEY` is set, requests must include a matching `X-API-Key` header.
+    """
+    if settings.api_key and x_api_key != settings.api_key:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 
 def _get_engine(request: Request) -> ValidationEngine:
@@ -15,7 +28,7 @@ def _get_engine(request: Request) -> ValidationEngine:
     return ValidationEngine(settings=settings)
 
 
-@router.post("/validate", response_model=ValidationResponse)
+@router.post("/validate", response_model=ValidationResponse, dependencies=[Depends(verify_api_key)])
 async def validate_content(
     body: ValidationRequest,
     request: Request,
@@ -24,7 +37,7 @@ async def validate_content(
     return engine.run(body)
 
 
-@router.get("/validators")
+@router.get("/validators", dependencies=[Depends(verify_api_key)])
 async def list_validators(request: Request) -> dict[str, list[str]]:
     engine = _get_engine(request)
     return {"validators": engine.available_validators}

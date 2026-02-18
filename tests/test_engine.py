@@ -1,8 +1,12 @@
 """Tests for the validation engine."""
 
+import pytest
+from fastapi import HTTPException
+
 from joshua7.config import Settings
 from joshua7.engine import ValidationEngine
 from joshua7.models import ValidationRequest
+from joshua7.validators.base import BaseValidator
 
 
 class TestValidationEngine:
@@ -74,3 +78,31 @@ class TestValidationEngine:
         assert hasattr(response, "results")
         assert hasattr(response, "text_length")
         assert hasattr(response, "validators_run")
+
+    def test_run_catches_validator_exception(self):
+        class BoomValidator(BaseValidator):
+            name = "boom"
+
+            def validate(self, text: str):  # noqa: ANN001
+                raise RuntimeError("boom")
+
+        engine = self._engine()
+        engine._validators["boom"] = BoomValidator(config={})
+
+        request = ValidationRequest(text="Hello.", validators=["boom"])
+        response = engine.run(request)
+
+        assert response.passed is False
+        assert response.validators_run == 1
+        assert response.results[0].passed is False
+        assert (
+            response.results[0].findings[0].message
+            == "Validator 'boom' encountered an internal error — content blocked as a precaution"
+        )
+
+    def test_validate_text_raises_http_422_on_bad_input(self):
+        engine = self._engine()
+        with pytest.raises(HTTPException) as excinfo:
+            engine.validate_text("")
+        assert excinfo.value.status_code == 422
+        assert "Invalid request" in str(excinfo.value.detail)

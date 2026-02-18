@@ -2,16 +2,28 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
+from fastapi import HTTPException
+from pydantic import ValidationError
+
 from joshua7.config import Settings, get_settings
-from joshua7.models import ValidationRequest, ValidationResponse, ValidationResult
+from joshua7.models import (
+    Severity,
+    ValidationFinding,
+    ValidationRequest,
+    ValidationResponse,
+    ValidationResult,
+)
 from joshua7.validators.base import BaseValidator
 from joshua7.validators.brand_voice import BrandVoiceScorer
 from joshua7.validators.forbidden_phrases import ForbiddenPhraseDetector
 from joshua7.validators.pii import PIIValidator
 from joshua7.validators.prompt_injection import PromptInjectionDetector
 from joshua7.validators.readability import ReadabilityScorer
+
+logger = logging.getLogger(__name__)
 
 _REGISTRY: dict[str, type[BaseValidator]] = {
     "forbidden_phrases": ForbiddenPhraseDetector,
@@ -52,8 +64,28 @@ class ValidationEngine:
             if name in request.config_overrides:
                 merged = {**self._settings_to_config(), **request.config_overrides[name]}
                 validator = _REGISTRY[name](config=merged)
-            result = validator.validate(request.text)
-            results.append(result)
+            try:
+                result = validator.validate(request.text)
+                results.append(result)
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("Validator '%s' crashed during validation", name, exc_info=exc)
+                results.append(
+                    ValidationResult(
+                        validator_name=name,
+                        passed=False,
+                        findings=[
+                            ValidationFinding(
+                                validator_name=name,
+                                severity=Severity.ERROR,
+                                message=(
+                                    f"Validator '{name}' encountered an internal error — "
+                                    "content blocked as a precaution"
+                                ),
+                                metadata={"error_type": type(exc).__name__},
+                            )
+                        ],
+                    )
+                )
 
         all_passed = all(r.passed for r in results)
         return ValidationResponse(
@@ -65,10 +97,17 @@ class ValidationEngine:
 
     def validate_text(self, text: str, validators: list[str] | None = None) -> ValidationResponse:
         """Convenience wrapper that builds a request from plain text."""
-        request = ValidationRequest(
-            text=text,
-            validators=validators or ["all"],
-        )
+        try:
+            request = ValidationRequest(
+                text=text,
+                validators=validators or ["all"],
+            )
+        except ValidationError as exc:
+            logger.info("Invalid validate_text input rejected", exc_info=exc)
+            raise HTTPException(
+                status_code=422,
+                detail="Invalid request: text must be a non-empty string.",
+            ) from None
         return self.run(request)
 
     def _resolve_validators(self, names: list[str]) -> list[str]:

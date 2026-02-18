@@ -9,12 +9,12 @@ from joshua7.models import ValidationResult
 
 
 class BaseValidator(ABC):
-    """Every validator must subclass this and implement `validate`."""
+    """Every validator must subclass this and implement ``validate``."""
 
     name: str = "base"
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
-        self.config = config or {}
+        self.config: dict[str, Any] = config or {}
 
     @abstractmethod
     def validate(self, text: str) -> ValidationResult:

@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
 
 from joshua7.models import Severity, ValidationFinding, ValidationResult
 from joshua7.validators.base import BaseValidator
+
+logger = logging.getLogger(__name__)
 
 _DEFAULT_PHRASES = [
     "as an ai",

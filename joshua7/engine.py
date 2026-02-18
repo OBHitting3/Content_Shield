@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
+import uuid
 from typing import Any
 
+from joshua7 import __version__
 from joshua7.config import Settings, get_settings
 from joshua7.models import ValidationRequest, ValidationResponse, ValidationResult
 from joshua7.validators.base import BaseValidator
@@ -12,6 +15,8 @@ from joshua7.validators.forbidden_phrases import ForbiddenPhraseDetector
 from joshua7.validators.pii import PIIValidator
 from joshua7.validators.prompt_injection import PromptInjectionDetector
 from joshua7.validators.readability import ReadabilityScorer
+
+logger = logging.getLogger(__name__)
 
 _REGISTRY: dict[str, type[BaseValidator]] = {
     "forbidden_phrases": ForbiddenPhraseDetector,
@@ -42,8 +47,13 @@ class ValidationEngine:
     def available_validators(self) -> list[str]:
         return list(self._validators.keys())
 
-    def run(self, request: ValidationRequest) -> ValidationResponse:
+    def run(
+        self,
+        request: ValidationRequest,
+        request_id: str | None = None,
+    ) -> ValidationResponse:
         """Execute requested validators and return aggregated response."""
+        rid = request_id or uuid.uuid4().hex
         selected = self._resolve_validators(request.validators)
         results: list[ValidationResult] = []
 
@@ -52,24 +62,39 @@ class ValidationEngine:
             if name in request.config_overrides:
                 merged = {**self._settings_to_config(), **request.config_overrides[name]}
                 validator = _REGISTRY[name](config=merged)
-            result = validator.validate(request.text)
+            try:
+                result = validator.validate(request.text)
+            except Exception:
+                logger.exception("Validator '%s' raised an exception", name)
+                result = ValidationResult(
+                    validator_name=name,
+                    passed=False,
+                    findings=[],
+                )
             results.append(result)
 
         all_passed = all(r.passed for r in results)
         return ValidationResponse(
+            request_id=rid,
+            version=__version__,
             passed=all_passed,
             results=results,
             text_length=len(request.text),
             validators_run=len(results),
         )
 
-    def validate_text(self, text: str, validators: list[str] | None = None) -> ValidationResponse:
+    def validate_text(
+        self,
+        text: str,
+        validators: list[str] | None = None,
+        request_id: str | None = None,
+    ) -> ValidationResponse:
         """Convenience wrapper that builds a request from plain text."""
         request = ValidationRequest(
             text=text,
             validators=validators or ["all"],
         )
-        return self.run(request)
+        return self.run(request, request_id=request_id)
 
     def _resolve_validators(self, names: list[str]) -> list[str]:
         if "all" in names:
@@ -78,4 +103,6 @@ class ValidationEngine:
         for n in names:
             if n in self._validators:
                 resolved.append(n)
+            else:
+                logger.warning("Unknown validator requested: '%s' — skipping", n)
         return resolved

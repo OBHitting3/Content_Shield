@@ -67,10 +67,44 @@ class TestValidationEngine:
         fp_result = next(r for r in response.results if r.validator_name == "forbidden_phrases")
         assert fp_result.passed is False
 
-    def test_response_model(self):
+    def test_response_model_fields(self):
         engine = self._engine()
         response = engine.validate_text("Short text.")
         assert hasattr(response, "passed")
         assert hasattr(response, "results")
         assert hasattr(response, "text_length")
         assert hasattr(response, "validators_run")
+
+    def test_response_has_request_id(self):
+        engine = self._engine()
+        response = engine.validate_text("Content here.")
+        assert response.request_id is not None
+        assert len(response.request_id) > 0
+
+    def test_response_has_version(self):
+        engine = self._engine()
+        response = engine.validate_text("Content here.")
+        assert response.version != ""
+
+    def test_response_has_timestamp(self):
+        engine = self._engine()
+        response = engine.validate_text("Content here.")
+        assert response.timestamp is not None
+        assert "T" in response.timestamp
+
+    def test_custom_request_id_propagated(self):
+        engine = self._engine()
+        response = engine.validate_text("Content.", request_id="test-123")
+        assert response.request_id == "test-123"
+
+    def test_validator_exception_does_not_crash(self):
+        """If a validator throws, the engine should catch it and report failure."""
+        engine = self._engine()
+        response = engine.validate_text("Normal content.")
+        assert response.validators_run == 5
+
+    def test_unicode_content(self):
+        engine = self._engine()
+        response = engine.validate_text("Héllo wörld! 你好世界 🌍")
+        assert response.text_length > 0
+        assert response.validators_run == 5

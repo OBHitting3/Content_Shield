@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import textstat
 
 from joshua7.models import Severity, ValidationFinding, ValidationResult
 from joshua7.validators.base import BaseValidator
+
+logger = logging.getLogger(__name__)
 
 
 class ReadabilityScorer(BaseValidator):

@@ -1,0 +1,130 @@
+"""Typer CLI entry point for Joshua 7."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import typer
+import uvicorn
+
+from joshua7 import __version__
+from joshua7.config import get_settings
+from joshua7.engine import ValidationEngine
+
+app = typer.Typer(
+    name="joshua7",
+    help="Joshua 7 — Content Shield: Pre-publication AI content validation.",
+    add_completion=False,
+)
+
+
+def _version_callback(value: bool) -> None:
+    if value:
+        typer.echo(f"Joshua 7 v{__version__}")
+        raise typer.Exit()
+
+
+@app.callback()
+def main(
+    version: bool | None = typer.Option(
+        None, "--version", "-V", callback=_version_callback, is_eager=True,
+        help="Show version and exit.",
+    ),
+) -> None:
+    """Joshua 7 — Content Shield CLI."""
+
+
+@app.command()
+def validate(
+    text: str | None = typer.Option(None, "--text", "-t", help="Text to validate."),
+    file: Path | None = typer.Option(None, "--file", "-f", help="File to validate."),
+    validators: str | None = typer.Option(
+        "all", "--validators", "-v",
+        help="Comma-separated validator names, or 'all'.",
+    ),
+    config: Path | None = typer.Option(
+        None, "--config", "-c", help="Path to YAML config.",
+    ),
+    output_json: bool = typer.Option(False, "--json", "-j", help="Output raw JSON."),
+) -> None:
+    """Validate content against enabled validators."""
+    if text is None and file is None:
+        typer.echo("Error: provide --text or --file", err=True)
+        raise typer.Exit(code=1)
+
+    content = text or ""
+    if file:
+        if not file.exists():
+            typer.echo(f"Error: file not found: {file}", err=True)
+            raise typer.Exit(code=1)
+        content = file.read_text(encoding="utf-8")
+
+    settings = get_settings(config_path=config)
+    engine = ValidationEngine(settings=settings)
+
+    validator_list = [v.strip() for v in (validators or "all").split(",")]
+    response = engine.validate_text(content, validators=validator_list)
+
+    if output_json:
+        typer.echo(response.model_dump_json(indent=2))
+    else:
+        _print_report(response)
+
+    if not response.passed:
+        raise typer.Exit(code=1)
+
+
+def _print_report(response) -> None:  # noqa: ANN001
+    if response.passed:
+        status = typer.style("PASS", fg=typer.colors.GREEN, bold=True)
+    else:
+        status = typer.style("FAIL", fg=typer.colors.RED, bold=True)
+
+    typer.echo(f"\n{'='*60}")
+    typer.echo("  Joshua 7 — Content Shield Report")
+    typer.echo(f"{'='*60}")
+    typer.echo(f"  Overall: {status}")
+    typer.echo(f"  Text length: {response.text_length} chars")
+    typer.echo(f"  Validators run: {response.validators_run}")
+    typer.echo(f"{'─'*60}")
+
+    for result in response.results:
+        if result.passed:
+            icon = typer.style("✓", fg=typer.colors.GREEN)
+        else:
+            icon = typer.style("✗", fg=typer.colors.RED)
+        score_str = f" (score: {result.score})" if result.score is not None else ""
+        typer.echo(f"  {icon} {result.validator_name}{score_str}")
+        for finding in result.findings:
+            sev = finding.severity.value.upper()
+            typer.echo(f"      [{sev}] {finding.message}")
+
+    typer.echo(f"{'='*60}\n")
+
+
+@app.command()
+def serve(
+    host: str = typer.Option("0.0.0.0", "--host", "-h", help="Bind address."),
+    port: int = typer.Option(8000, "--port", "-p", help="Port number."),
+    reload: bool = typer.Option(False, "--reload", help="Enable auto-reload."),
+) -> None:
+    """Start the FastAPI server."""
+    uvicorn.run(
+        "joshua7.api.main:app",
+        host=host,
+        port=port,
+        reload=reload,
+        log_level="info",
+    )
+
+
+@app.command()
+def list_validators() -> None:
+    """List all available validators."""
+    engine = ValidationEngine()
+    for name in engine.available_validators:
+        typer.echo(f"  • {name}")
+
+
+if __name__ == "__main__":
+    app()

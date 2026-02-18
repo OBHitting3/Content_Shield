@@ -53,6 +53,7 @@ class TestValidationEngine:
         engine = self._engine()
         response = engine.validate_text("Hello.", validators=["nonexistent"])
         assert response.validators_run == 0
+        assert response.passed is False  # zero validators = not passed
 
     def test_config_overrides(self):
         engine = self._engine()

@@ -34,7 +34,7 @@ _REDACT_MAP: dict[str, str] = {
 }
 
 
-def _redact(pii_type: str, value: str) -> str:
+def _redact(pii_type: str) -> str:
     """Return a fixed redacted placeholder — never echo real PII."""
     return _REDACT_MAP.get(pii_type, "***REDACTED***")
 
@@ -56,7 +56,7 @@ class PIIValidator(BaseValidator):
 
         for pii_type, pattern in self._active.items():
             for match in pattern.finditer(text):
-                redacted = _redact(pii_type, match.group())
+                redacted = _redact(pii_type)
                 findings.append(
                     ValidationFinding(
                         validator_name=self.name,

@@ -73,7 +73,7 @@ class ValidationEngine:
                 )
             results.append(result)
 
-        all_passed = all(r.passed for r in results)
+        all_passed = bool(results) and all(r.passed for r in results)
         return ValidationResponse(
             request_id=rid,
             version=__version__,

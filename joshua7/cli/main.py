@@ -7,11 +7,12 @@ from pathlib import Path
 
 import typer
 import uvicorn
+from pydantic import ValidationError
 
 from joshua7 import __version__
 from joshua7.config import get_settings
 from joshua7.engine import ValidationEngine
-from joshua7.models import ValidationResponse
+from joshua7.models import MAX_TEXT_LENGTH, ValidationResponse
 
 app = typer.Typer(
     name="joshua7",
@@ -76,6 +77,14 @@ def validate(
         if not file.is_file():
             typer.echo(f"Error: not a regular file: {file}", err=True)
             raise typer.Exit(code=2)
+        file_size = file.stat().st_size
+        if file_size > MAX_TEXT_LENGTH * 4:
+            typer.echo(
+                f"Error: file too large ({file_size:,} bytes). "
+                f"Max supported: ~{MAX_TEXT_LENGTH:,} characters.",
+                err=True,
+            )
+            raise typer.Exit(code=2)
         content = file.read_text(encoding="utf-8")
     elif stdin:
         content = sys.stdin.read()
@@ -88,7 +97,12 @@ def validate(
     engine = ValidationEngine(settings=settings)
 
     validator_list = [v.strip() for v in (validators or "all").split(",")]
-    response = engine.validate_text(content, validators=validator_list)
+    try:
+        response = engine.validate_text(content, validators=validator_list)
+    except ValidationError as exc:
+        for err in exc.errors():
+            typer.echo(f"Error: {err['msg']}", err=True)
+        raise typer.Exit(code=2) from None
 
     if output_json:
         typer.echo(response.model_dump_json(indent=2))

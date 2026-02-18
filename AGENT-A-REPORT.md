@@ -137,6 +137,24 @@ The original MVP codebase was functional but had **critical security vulnerabili
 
 ---
 
+## Verification Pass — Backwards + Forwards (Post Phase 6)
+
+Additional sweep found and fixed 9 more issues:
+
+| # | Severity | Fix |
+|---|----------|-----|
+| F1 | **HIGH** | `J7_MAX_TEXT_LENGTH` env var was ignored — engine now enforces `settings.max_text_length` as a pre-check |
+| F2 | MEDIUM | Eliminated duplicate `_DEFAULT_PHRASES` — `forbidden_phrases.py` now imports from `config.py` |
+| F3 | MEDIUM | Brand voice keyword matching switched to `\b` word boundaries (was substring) |
+| F4 | MEDIUM | README updated: documents `--stdin`, `--json`, `list`, `.env.example`, PII redaction, request IDs |
+| F5 | LOW | Removed `ALL_VALIDATORS` parallel list from `validators/__init__.py` |
+| F6 | LOW | CLI pre-checks text length with clean error before Pydantic throws |
+| F7 | LOW | Dockerfile `HEALTHCHECK --start-period=10s` prevents false unhealthy on cold start |
+| F8 | LOW | Readability always reports `grade_level` in findings (was discarded on pass) |
+| F9 | LOW | `test_validator_exception` now mocks an actual throw; added 3 new tests |
+
+**Final counts:** 76 tests passing | 0 lint errors | 4 commits
+
 ## Remaining Known Limitations (Accepted for MVP)
 
 1. **No authentication/rate-limiting** — expected to be handled at infrastructure layer (Cloud Run IAM, API Gateway)

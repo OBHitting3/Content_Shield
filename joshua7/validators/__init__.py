@@ -6,19 +6,10 @@ from joshua7.validators.pii import PIIValidator
 from joshua7.validators.prompt_injection import PromptInjectionDetector
 from joshua7.validators.readability import ReadabilityScorer
 
-ALL_VALIDATORS = [
-    ForbiddenPhraseDetector,
-    PIIValidator,
-    BrandVoiceScorer,
-    PromptInjectionDetector,
-    ReadabilityScorer,
-]
-
 __all__ = [
     "ForbiddenPhraseDetector",
     "PIIValidator",
     "BrandVoiceScorer",
     "PromptInjectionDetector",
     "ReadabilityScorer",
-    "ALL_VALIDATORS",
 ]

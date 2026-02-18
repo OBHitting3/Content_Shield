@@ -8,7 +8,13 @@ from typing import Any
 
 from joshua7 import __version__
 from joshua7.config import Settings, get_settings
-from joshua7.models import ValidationRequest, ValidationResponse, ValidationResult
+from joshua7.models import (
+    Severity,
+    ValidationFinding,
+    ValidationRequest,
+    ValidationResponse,
+    ValidationResult,
+)
 from joshua7.validators.base import BaseValidator
 from joshua7.validators.brand_voice import BrandVoiceScorer
 from joshua7.validators.forbidden_phrases import ForbiddenPhraseDetector
@@ -54,6 +60,32 @@ class ValidationEngine:
     ) -> ValidationResponse:
         """Execute requested validators and return aggregated response."""
         rid = request_id or uuid.uuid4().hex
+        max_len = self._settings.max_text_length
+        if len(request.text) > max_len:
+            return ValidationResponse(
+                request_id=rid,
+                version=__version__,
+                passed=False,
+                results=[
+                    ValidationResult(
+                        validator_name="_engine",
+                        passed=False,
+                        findings=[
+                            ValidationFinding(
+                                validator_name="_engine",
+                                severity=Severity.ERROR,
+                                message=(
+                                    f"Text length {len(request.text):,} exceeds "
+                                    f"configured maximum of {max_len:,} characters."
+                                ),
+                            ),
+                        ],
+                    ),
+                ],
+                text_length=len(request.text),
+                validators_run=0,
+            )
+
         selected = self._resolve_validators(request.validators)
         results: list[ValidationResult] = []
 

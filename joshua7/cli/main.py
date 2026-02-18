@@ -94,6 +94,15 @@ def validate(
         raise typer.Exit(code=2)
 
     settings = get_settings(config_path=config)
+
+    if len(content) > settings.max_text_length:
+        typer.echo(
+            f"Error: content too long ({len(content):,} chars). "
+            f"Maximum allowed: {settings.max_text_length:,} chars.",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
     engine = ValidationEngine(settings=settings)
 
     validator_list = [v.strip() for v in (validators or "all").split(",")]

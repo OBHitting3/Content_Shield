@@ -78,8 +78,10 @@ class BrandVoiceScorer(BaseValidator):
         score -= min(penalty_count * 5.0, 40.0)
 
         if self._keywords:
-            lower = text.lower()
-            keyword_hits = sum(1 for kw in self._keywords if kw in lower)
+            keyword_hits = sum(
+                1 for kw in self._keywords
+                if re.search(rf"\b{re.escape(kw)}\b", text, re.IGNORECASE)
+            )
             keyword_ratio = keyword_hits / len(self._keywords)
             score += keyword_ratio * 15.0
 

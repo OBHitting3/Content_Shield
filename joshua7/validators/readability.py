@@ -63,6 +63,18 @@ class ReadabilityScorer(BaseValidator):
                     },
                 )
             )
+        else:
+            findings.append(
+                ValidationFinding(
+                    validator_name=self.name,
+                    severity=Severity.INFO,
+                    message=f"Flesch score {fk_score:.1f}, grade level {grade_level:.1f}",
+                    metadata={
+                        "flesch_score": fk_score,
+                        "grade_level": grade_level,
+                    },
+                )
+            )
 
         return ValidationResult(
             validator_name=self.name,

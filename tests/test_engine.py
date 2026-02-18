@@ -1,5 +1,7 @@
 """Tests for the validation engine."""
 
+from unittest.mock import patch
+
 from joshua7.config import Settings
 from joshua7.engine import ValidationEngine
 from joshua7.models import ValidationRequest
@@ -101,11 +103,36 @@ class TestValidationEngine:
     def test_validator_exception_does_not_crash(self):
         """If a validator throws, the engine should catch it and report failure."""
         engine = self._engine()
-        response = engine.validate_text("Normal content.")
+        with patch.object(
+            engine._validators["readability"],
+            "validate",
+            side_effect=RuntimeError("boom"),
+        ):
+            response = engine.validate_text("Normal content for testing.")
         assert response.validators_run == 5
+        readability = next(r for r in response.results if r.validator_name == "readability")
+        assert readability.passed is False
 
     def test_unicode_content(self):
         engine = self._engine()
         response = engine.validate_text("Héllo wörld! 你好世界 🌍")
         assert response.text_length > 0
+        assert response.validators_run == 5
+
+    def test_max_text_length_enforced(self):
+        settings = Settings(max_text_length=50)
+        engine = ValidationEngine(settings=settings)
+        response = engine.validate_text("A" * 100)
+        assert response.passed is False
+        assert response.validators_run == 0
+        assert any(
+            "exceeds" in f.message
+            for r in response.results
+            for f in r.findings
+        )
+
+    def test_max_text_length_allows_under_limit(self):
+        settings = Settings(max_text_length=500)
+        engine = ValidationEngine(settings=settings)
+        response = engine.validate_text("Short text.")
         assert response.validators_run == 5

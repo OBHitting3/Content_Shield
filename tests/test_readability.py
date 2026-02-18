@@ -61,3 +61,17 @@ class TestReadabilityScorer:
         v = ReadabilityScorer()
         result = v.validate("Hello.")
         assert result.score is not None
+
+    def test_grade_level_always_reported(self):
+        """Grade level should appear in findings metadata even when text passes."""
+        v = ReadabilityScorer(
+            config={"readability_min_score": 0.0, "readability_max_score": 100.0}
+        )
+        result = v.validate(
+            "The team delivered a professional product to every customer on time."
+        )
+        assert result.passed is True
+        assert len(result.findings) >= 1
+        info_finding = result.findings[0]
+        assert "grade_level" in info_finding.metadata
+        assert "flesch_score" in info_finding.metadata

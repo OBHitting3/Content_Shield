@@ -55,6 +55,27 @@ class Settings(BaseSettings):
 
     api_key: str = ""
 
+    cors_allow_origins: list[str] = Field(
+        default_factory=lambda: ["*"],
+        description="Allowed CORS origins. Use ['*'] for development only.",
+    )
+    rate_limit_rpm: int = Field(
+        default=60,
+        description="Max requests per minute per client IP (0 = disabled).",
+    )
+    rate_limit_burst: int = Field(
+        default=10,
+        description="Burst allowance above the sustained rate limit.",
+    )
+    max_request_body_bytes: int = Field(
+        default=4 * 1024 * 1024,
+        description="Hard cap on request body size in bytes (default 4 MB).",
+    )
+    trusted_hosts: list[str] = Field(
+        default_factory=lambda: ["*"],
+        description="Trusted hostnames for Host header validation. ['*'] = any.",
+    )
+
     @classmethod
     def from_yaml(cls, path: Path | str | None = None) -> Settings:
         config_path = Path(path) if path else _DEFAULT_CONFIG_PATH

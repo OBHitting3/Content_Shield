@@ -32,3 +32,12 @@ brand_voice_tone: professional
 
 readability_min_score: 30.0
 readability_max_score: 80.0
+
+# Security
+cors_allow_origins:
+  - "*"
+rate_limit_rpm: 60
+rate_limit_burst: 10
+max_request_body_bytes: 4194304  # 4 MB
+trusted_hosts:
+  - "*"

@@ -100,10 +100,17 @@ joshua7/
 
 ## Security
 
-- PII values are **always redacted** in API responses — raw emails, SSNs, and phone numbers are never echoed back.
-- Input text is capped at a configurable maximum (default 500K chars) to prevent memory exhaustion.
-- CORS middleware is enabled with `allow_credentials=False`.
-- Request IDs are propagated for audit trails.
+- **PII Redaction**: Raw emails, SSNs, and phone numbers are **never** echoed back in API responses.
+- **Input Limits**: Text capped at 500K chars; request body hard-capped at 4 MB (configurable).
+- **Timing-Safe Auth**: API key comparison uses HMAC constant-time comparison to prevent timing attacks.
+- **Rate Limiting**: In-memory sliding-window rate limiter (default 60 req/min per client IP). Health endpoint is exempt.
+- **Security Headers**: Every response includes `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `CSP`, `Referrer-Policy`, `Permissions-Policy`, and `Cache-Control: no-store`. HSTS is set over HTTPS.
+- **CORS Hardening**: Origins, methods, and exposed headers are configurable (default `*` for dev).
+- **Request ID Sanitization**: `X-Request-ID` is sanitized to prevent log/header injection (alphanumeric + hyphen/underscore, max 128 chars).
+- **Config Override Sandboxing**: API `config_overrides` are restricted to validator-tuning keys only; infrastructure keys (`api_key`, `debug`, `host`, `port`, `max_text_length`) are silently blocked.
+- **Error Sanitization**: Custom exception handlers ensure stack traces and internal paths never leak in API responses.
+- **Trusted Host Validation**: Configurable via `J7_TRUSTED_HOSTS` (default allows all; restrict in production).
+- **Audit Logging**: Security-relevant events (auth failures, rate limit hits, blocked overrides, sanitized headers) are logged at WARNING level.
 
 ## Docker
 

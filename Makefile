@@ -1,4 +1,4 @@
-.PHONY: install dev test lint format serve docker-build docker-run clean
+.PHONY: install dev test test-security lint format serve docker-build docker-run clean
 
 install:
 	pip install -e .
@@ -8,6 +8,9 @@ dev:
 
 test:
 	pytest --tb=short -v
+
+test-security:
+	pytest tests/test_security.py -v --tb=short
 
 test-cov:
 	pytest --cov=joshua7 --cov-report=term-missing

@@ -12,6 +12,9 @@ RUN pip install --no-cache-dir .
 
 USER appuser
 
+ENV J7_DEBUG=false
+ENV J7_RATE_LIMIT_RPM=60
+
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

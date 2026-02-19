@@ -148,6 +148,18 @@ def _print_report(response: ValidationResponse) -> None:
             sev = finding.severity.value.upper()
             typer.echo(f"      [{sev}] {finding.message}")
 
+    risk = response.risk
+    risk_color = {
+        "GREEN": typer.colors.GREEN,
+        "YELLOW": typer.colors.YELLOW,
+        "ORANGE": typer.colors.RED,
+        "RED": typer.colors.RED,
+    }.get(risk.risk_level, typer.colors.WHITE)
+    risk_label = typer.style(risk.risk_level, fg=risk_color, bold=True)
+    typer.echo(f"{'─'*60}")
+    typer.echo(f"  Risk: {risk_label}  ({risk.composite_risk_score:.1f}/100)")
+    for ax in risk.axes:
+        typer.echo(f"    [{ax.axis}] {ax.label}: {ax.raw_score:.0f}")
     typer.echo(f"{'='*60}\n")
 
 

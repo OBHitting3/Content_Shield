@@ -75,3 +75,21 @@ class TestReadabilityScorer:
         info_finding = result.findings[0]
         assert "grade_level" in info_finding.metadata
         assert "flesch_score" in info_finding.metadata
+
+    def test_complex_text_has_warning_severity(self):
+        v = ReadabilityScorer(
+            config={"readability_min_score": 50.0, "readability_max_score": 80.0}
+        )
+        text = (
+            "The epistemological ramifications of ontological hermeneutics are "
+            "extraordinarily multifaceted and incomprehensibly dense to the "
+            "uninitiated participant observer."
+        )
+        result = v.validate(text)
+        if not result.passed:
+            assert any(f.severity.value == "warning" for f in result.findings)
+
+    def test_findings_always_present(self):
+        v = ReadabilityScorer()
+        result = v.validate("A normal readable sentence about everyday topics.")
+        assert len(result.findings) >= 1

@@ -12,6 +12,7 @@ def client(monkeypatch: pytest.MonkeyPatch):
     app = create_app()
     return TestClient(app)
 
+
 @pytest.fixture
 def client_with_api_key(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("J7_API_KEY", "sekret")
@@ -32,7 +33,7 @@ class TestAPI:
         assert resp.status_code == 200
         data = resp.json()
         assert "validators" in data
-        assert len(data["validators"]) == 5
+        assert len(data["validators"]) == 6
 
     def test_validate_clean(self, client):
         resp = client.post("/api/v1/validate", json={
@@ -58,7 +59,7 @@ class TestAPI:
         })
         assert resp.status_code == 200
         data = resp.json()
-        assert data["validators_run"] == 5
+        assert data["validators_run"] == 6
 
     def test_validate_empty_text_rejected(self, client):
         resp = client.post("/api/v1/validate", json={"text": ""})
@@ -126,3 +127,52 @@ class TestAPI:
         body = resp.text
         assert "secret@evil.com" not in body
         assert "123-45-6789" not in body
+
+    def test_response_contains_risk(self, client):
+        resp = client.post("/api/v1/validate", json={
+            "text": "Test content for risk check.",
+        })
+        data = resp.json()
+        assert "risk" in data
+        assert "composite_risk_score" in data["risk"]
+        assert "risk_level" in data["risk"]
+        assert "axes" in data["risk"]
+
+    def test_validate_toxicity(self, client):
+        resp = client.post("/api/v1/validate", json={
+            "text": "I will kill you for this.",
+            "validators": ["toxicity"],
+        })
+        data = resp.json()
+        assert data["passed"] is False
+
+    def test_api_key_required_when_set(self, client_with_api_key):
+        resp = client_with_api_key.post("/api/v1/validate", json={
+            "text": "Test.",
+            "validators": ["forbidden_phrases"],
+        })
+        assert resp.status_code == 401
+
+    def test_api_key_accepted(self, client_with_api_key):
+        resp = client_with_api_key.post(
+            "/api/v1/validate",
+            json={"text": "Test.", "validators": ["forbidden_phrases"]},
+            headers={"X-API-Key": "sekret"},
+        )
+        assert resp.status_code == 200
+
+    def test_api_key_wrong_rejected(self, client_with_api_key):
+        resp = client_with_api_key.post(
+            "/api/v1/validate",
+            json={"text": "Test.", "validators": ["forbidden_phrases"]},
+            headers={"X-API-Key": "wrong"},
+        )
+        assert resp.status_code == 401
+
+    def test_credit_card_not_leaked(self, client):
+        resp = client.post("/api/v1/validate", json={
+            "text": "Card 4111-1111-1111-1111 on file.",
+            "validators": ["pii"],
+        })
+        body = resp.text
+        assert "4111-1111-1111-1111" not in body

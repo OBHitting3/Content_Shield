@@ -25,6 +25,7 @@ pii_patterns_enabled:
   - email
   - phone
   - ssn
+  - credit_card
 
 brand_voice_target_score: 60.0
 brand_voice_keywords: []
@@ -32,3 +33,11 @@ brand_voice_tone: professional
 
 readability_min_score: 30.0
 readability_max_score: 80.0
+
+toxicity_threshold: 0.5
+toxicity_categories_enabled:
+  - threat
+  - harassment
+  - profanity
+  - discrimination
+  - self_harm

@@ -5,6 +5,7 @@ from joshua7.validators.forbidden_phrases import ForbiddenPhraseDetector
 from joshua7.validators.pii import PIIValidator
 from joshua7.validators.prompt_injection import PromptInjectionDetector
 from joshua7.validators.readability import ReadabilityScorer
+from joshua7.validators.toxicity import ToxicityDetector
 
 __all__ = [
     "ForbiddenPhraseDetector",
@@ -12,4 +13,5 @@ __all__ = [
     "BrandVoiceScorer",
     "PromptInjectionDetector",
     "ReadabilityScorer",
+    "ToxicityDetector",
 ]

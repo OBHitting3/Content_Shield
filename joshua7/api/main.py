@@ -8,6 +8,7 @@ import uuid
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from joshua7 import __version__
 from joshua7.api.routes import router
@@ -23,7 +24,10 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.app_name,
         version=__version__,
-        description="Pre-publication AI content validation engine",
+        description=(
+            "Pre-publication AI content validation engine"
+            " — Content Shield by Iron Forge Studios"
+        ),
         docs_url="/docs",
         redoc_url="/redoc",
     )
@@ -55,6 +59,14 @@ def create_app() -> FastAPI:
     @app.get("/health")
     async def health() -> dict[str, str]:
         return {"status": "ok", "version": __version__}
+
+    @app.exception_handler(Exception)
+    async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+        logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error"},
+        )
 
     return app
 

@@ -67,3 +67,31 @@ class TestBrandVoiceScorer:
         result = v.validate("Yo check this out dude.")
         off_tone_words = [f.metadata.get("word") for f in result.findings]
         assert "yo" in off_tone_words
+
+    def test_dude_matches_standalone(self):
+        v = BrandVoiceScorer()
+        result = v.validate("Hey dude, what is up with this project?")
+        off_tone_words = [f.metadata.get("word") for f in result.findings]
+        assert "dude" in off_tone_words
+
+    def test_engagement_words_boost_score(self):
+        v = BrandVoiceScorer()
+        r1 = v.validate("Abstract concepts and theoretical frameworks exist.")
+        r2 = v.validate("We built this for you. Our team ensures your success.")
+        assert r2.score is not None and r1.score is not None
+        assert r2.score >= r1.score
+
+    def test_empty_keyword_list_no_crash(self):
+        v = BrandVoiceScorer(config={"brand_voice_keywords": []})
+        result = v.validate("This is a normal sentence for testing.")
+        assert result.score is not None
+
+    def test_unknown_tone_no_crash(self):
+        v = BrandVoiceScorer(config={"brand_voice_tone": "whimsical"})
+        result = v.validate("Once upon a time in a land far away.")
+        assert result.score is not None
+
+    def test_custom_target_score(self):
+        v = BrandVoiceScorer(config={"brand_voice_target_score": 90.0})
+        result = v.validate("A simple test sentence here.")
+        assert result.score is not None

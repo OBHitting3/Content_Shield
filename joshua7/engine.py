@@ -23,6 +23,7 @@ from joshua7.validators.forbidden_phrases import ForbiddenPhraseDetector
 from joshua7.validators.pii import PIIValidator
 from joshua7.validators.prompt_injection import PromptInjectionDetector
 from joshua7.validators.readability import ReadabilityScorer
+from joshua7.validators.toxicity import ToxicityDetector
 
 logger = logging.getLogger(__name__)
 
@@ -32,10 +33,11 @@ _REGISTRY: dict[str, type[BaseValidator]] = {
     "brand_voice": BrandVoiceScorer,
     "prompt_injection": PromptInjectionDetector,
     "readability": ReadabilityScorer,
+    "toxicity": ToxicityDetector,
 }
 
 # ---------------------------------------------------------------------------
-# RISK_TAXONOMY_v0 — weighted composite scoring
+# RISK_TAXONOMY_v1 — recalibrated 6-axis weighted composite scoring
 # ---------------------------------------------------------------------------
 _SEVERITY_POINTS = {
     Severity.INFO: 0,
@@ -45,16 +47,18 @@ _SEVERITY_POINTS = {
 }
 
 _RISK_AXES: list[dict[str, Any]] = [
-    {"axis": "A", "label": "Synthetic Artifacts", "weight": 0.30,
+    {"axis": "A", "label": "Synthetic Artifacts", "weight": 0.20,
      "validators": ["forbidden_phrases", "readability"]},
-    {"axis": "B", "label": "Hallucination / Factual Integrity", "weight": 0.25,
+    {"axis": "B", "label": "Hallucination / Factual Integrity", "weight": 0.15,
      "validators": ["readability"]},
-    {"axis": "C", "label": "Brand Safety / GARM", "weight": 0.20,
+    {"axis": "C", "label": "Brand Safety / GARM", "weight": 0.15,
      "validators": ["brand_voice"]},
     {"axis": "D", "label": "Regulatory Compliance / PII+Disclosure", "weight": 0.15,
      "validators": ["pii"]},
-    {"axis": "E", "label": "Adversarial Robustness / Injection", "weight": 0.10,
+    {"axis": "E", "label": "Adversarial Robustness / Injection", "weight": 0.15,
      "validators": ["prompt_injection"]},
+    {"axis": "F", "label": "Content Toxicity / Safety", "weight": 0.20,
+     "validators": ["toxicity"]},
 ]
 
 
@@ -104,12 +108,13 @@ def _critical_escalation(results: list[ValidationResult]) -> float:
     """Return an escalation bonus based on CRITICAL-severity findings.
 
     CRITICAL findings represent hard failures (PII leaks, active injection
-    attacks) that must dominate the composite regardless of axis weight.
+    attacks, toxic threats) that must dominate the composite regardless of
+    axis weight.
 
     Escalation schedule:
-        1 CRITICAL axis  → +40  (guarantees YELLOW, likely ORANGE with base)
-        2 CRITICAL axes  → +80  (guarantees RED with any non-zero base)
-        3+ CRITICAL axes → +100 (hard RED)
+        1 CRITICAL axis  -> +30  (pushes toward YELLOW)
+        2 CRITICAL axes  -> +60  (pushes toward ORANGE)
+        3+ CRITICAL axes -> +100 (hard RED)
     """
     axes_with_criticals: set[str] = set()
     results_map = {r.validator_name: r for r in results}
@@ -127,14 +132,14 @@ def _critical_escalation(results: list[ValidationResult]) -> float:
     if n == 0:
         return 0.0
     if n == 1:
-        return 40.0
+        return 30.0
     if n == 2:
-        return 80.0
+        return 60.0
     return 100.0
 
 
 def compute_risk_taxonomy(results: list[ValidationResult]) -> RiskTaxonomy:
-    """Build a RISK_TAXONOMY_v0 from a list of validator results."""
+    """Build a RISK_TAXONOMY_v1 from a list of validator results."""
     results_map = {r.validator_name: r for r in results}
     axes: list[RiskAxis] = []
     weighted_sum = 0.0
@@ -155,6 +160,7 @@ def compute_risk_taxonomy(results: list[ValidationResult]) -> RiskTaxonomy:
     composite = round(min(weighted_sum + escalation, 100.0), 1)
 
     return RiskTaxonomy(
+        version="v1",
         composite_risk_score=composite,
         risk_level=_risk_level(composite),
         axes=axes,

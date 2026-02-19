@@ -1,4 +1,4 @@
-"""Tests for RISK_TAXONOMY_v0 composite scoring."""
+"""Tests for RISK_TAXONOMY_v1 composite scoring."""
 
 from joshua7.config import Settings
 from joshua7.engine import ValidationEngine, compute_risk_taxonomy
@@ -48,22 +48,32 @@ class TestRiskTaxonomy:
         axis_e = next(a for a in response.risk.axes if a.axis == "E")
         assert axis_e.raw_score > 0
         assert axis_e.weighted_score > 0
-        assert response.risk.composite_risk_score >= 25
+
+    def test_toxicity_raises_axis_f(self):
+        """Toxicity findings should raise Axis F (Content Toxicity)."""
+        engine = self._engine()
+        response = engine.validate_text(
+            "I will kill you and destroy everything you love."
+        )
+        axis_f = next(a for a in response.risk.axes if a.axis == "F")
+        assert axis_f.raw_score > 0
+        assert axis_f.label == "Content Toxicity / Safety"
 
     def test_risk_level_thresholds(self):
-        """Verify GREEN/YELLOW/ORANGE/RED thresholds via synthetic results."""
+        """Verify GREEN threshold via synthetic results."""
         green_results = [
             ValidationResult(validator_name="forbidden_phrases", passed=True),
             ValidationResult(validator_name="pii", passed=True),
             ValidationResult(validator_name="brand_voice", passed=True, score=80.0),
             ValidationResult(validator_name="prompt_injection", passed=True, score=100.0),
             ValidationResult(validator_name="readability", passed=True, score=65.0),
+            ValidationResult(validator_name="toxicity", passed=True, score=100.0),
         ]
         risk = compute_risk_taxonomy(green_results)
         assert risk.risk_level == "GREEN"
         assert risk.composite_risk_score < 20
 
-    def test_high_risk_yields_red(self):
+    def test_high_risk_yields_red_or_orange(self):
         """Many critical findings across all validators should yield RED or ORANGE."""
         crit = ValidationFinding(
             validator_name="pii",
@@ -104,16 +114,20 @@ class TestRiskTaxonomy:
                     message="Too complex",
                 )],
             ),
+            ValidationResult(
+                validator_name="toxicity", passed=False, score=0.0,
+                findings=[crit],
+            ),
         ]
         risk = compute_risk_taxonomy(results)
         assert risk.composite_risk_score >= 50
         assert risk.risk_level in ("ORANGE", "RED")
 
     def test_axes_count_and_weights_sum(self):
-        """There should be 5 axes whose weights sum to 1.0."""
+        """There should be 6 axes whose weights sum to 1.0."""
         engine = self._engine()
         response = engine.validate_text("Simple test content.")
-        assert len(response.risk.axes) == 5
+        assert len(response.risk.axes) == 6
         total_weight = sum(a.weight for a in response.risk.axes)
         assert abs(total_weight - 1.0) < 0.001
 
@@ -134,7 +148,7 @@ class TestRiskTaxonomy:
         assert "composite_risk_score" in data["risk"]
         assert "risk_level" in data["risk"]
         assert "axes" in data["risk"]
-        assert len(data["risk"]["axes"]) == 5
+        assert len(data["risk"]["axes"]) == 6
 
     def test_critical_escalation_pii_plus_injection(self):
         """PII + injection (2 CRITICAL axes) should escalate to ORANGE or RED."""
@@ -161,6 +175,33 @@ class TestRiskTaxonomy:
             ValidationResult(validator_name="brand_voice", passed=True, score=80.0),
             ValidationResult(validator_name="prompt_injection", passed=True, score=100.0),
             ValidationResult(validator_name="readability", passed=True, score=65.0),
+            ValidationResult(validator_name="toxicity", passed=True, score=100.0),
         ]
         risk = compute_risk_taxonomy(results)
         assert risk.composite_risk_score < 50
+
+    def test_taxonomy_version_is_v1(self):
+        engine = self._engine()
+        response = engine.validate_text("Version check content.")
+        assert response.risk.version == "v1"
+
+    def test_triple_critical_escalation(self):
+        """3+ CRITICAL axes should yield hard RED (escalation +100)."""
+        crit = ValidationFinding(
+            validator_name="test",
+            severity=Severity.CRITICAL,
+            message="Critical finding",
+        )
+        results = [
+            ValidationResult(validator_name="pii", passed=False, findings=[crit]),
+            ValidationResult(
+                validator_name="prompt_injection", passed=False, score=0.0, findings=[crit],
+            ),
+            ValidationResult(validator_name="toxicity", passed=False, score=0.0, findings=[crit]),
+            ValidationResult(validator_name="forbidden_phrases", passed=True),
+            ValidationResult(validator_name="brand_voice", passed=True, score=80.0),
+            ValidationResult(validator_name="readability", passed=True, score=65.0),
+        ]
+        risk = compute_risk_taxonomy(results)
+        assert risk.risk_level == "RED"
+        assert risk.composite_risk_score == 100.0

@@ -28,6 +28,18 @@ class TestPIIValidator:
         assert result.passed is False
         assert any(f.metadata.get("pii_type") == "ssn" for f in result.findings)
 
+    def test_detects_credit_card(self):
+        v = PIIValidator()
+        result = v.validate("My card number is 4111-1111-1111-1111.")
+        assert result.passed is False
+        assert any(f.metadata.get("pii_type") == "credit_card" for f in result.findings)
+
+    def test_credit_card_with_spaces(self):
+        v = PIIValidator()
+        result = v.validate("Card: 4111 1111 1111 1111 please process.")
+        assert result.passed is False
+        assert any(f.metadata.get("pii_type") == "credit_card" for f in result.findings)
+
     def test_detects_multiple_pii(self):
         v = PIIValidator()
         result = v.validate(
@@ -66,6 +78,13 @@ class TestPIIValidator:
         assert f.metadata.get("redacted") == "***@***.***"
         assert "value" not in f.metadata
 
+    def test_credit_card_redaction(self):
+        v = PIIValidator()
+        result = v.validate("Card 4111-1111-1111-1111 on file.")
+        cc_finding = next(f for f in result.findings if f.metadata.get("pii_type") == "credit_card")
+        assert "4111-1111-1111-1111" not in cc_finding.message
+        assert cc_finding.metadata["redacted"] == "****-****-****-****"
+
     def test_unicode_email(self):
         v = PIIValidator()
         result = v.validate("Reach me at user@example.com or via carrier pigeon.")
@@ -74,4 +93,34 @@ class TestPIIValidator:
     def test_no_false_positive_on_at_sign(self):
         v = PIIValidator()
         result = v.validate("Look @ this cool thing!")
+        assert result.passed is True
+
+    def test_ssn_with_spaces(self):
+        v = PIIValidator()
+        result = v.validate("SSN 123 45 6789 found.")
+        assert result.passed is False
+        assert any(f.metadata.get("pii_type") == "ssn" for f in result.findings)
+
+    def test_phone_with_dots(self):
+        v = PIIValidator()
+        result = v.validate("Call 555.123.4567 for details.")
+        assert result.passed is False
+        assert any(f.metadata.get("pii_type") == "phone" for f in result.findings)
+
+    def test_span_offsets_correct(self):
+        v = PIIValidator()
+        text = "Email: test@test.com is here."
+        result = v.validate(text)
+        assert result.findings[0].span is not None
+        start, end = result.findings[0].span
+        assert text[start:end] == "test@test.com"
+
+    def test_validator_name(self):
+        v = PIIValidator()
+        result = v.validate("No PII here.")
+        assert result.validator_name == "pii"
+
+    def test_disable_credit_card(self):
+        v = PIIValidator(config={"pii_patterns_enabled": ["email", "phone", "ssn"]})
+        result = v.validate("Card 4111-1111-1111-1111 on file.")
         assert result.passed is True

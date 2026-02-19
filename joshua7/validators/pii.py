@@ -1,4 +1,4 @@
-"""PII Validator — detects emails, phone numbers, and SSNs."""
+"""PII Validator — detects emails, phone numbers, SSNs, and credit card numbers."""
 
 from __future__ import annotations
 
@@ -25,12 +25,18 @@ _PII_PATTERNS: dict[str, re.Pattern[str]] = {
     "ssn": re.compile(
         r"(?<!\d)\d{3}[\s\-]\d{2}[\s\-]\d{4}(?!\d)",
     ),
+    "credit_card": re.compile(
+        r"(?<!\d)"
+        r"\d{4}[\s\-]\d{4}[\s\-]\d{4}[\s\-]\d{4}"
+        r"(?!\d)",
+    ),
 }
 
 _REDACT_MAP: dict[str, str] = {
     "email": "***@***.***",
     "phone": "***-***-****",
     "ssn": "***-**-****",
+    "credit_card": "****-****-****-****",
 }
 
 

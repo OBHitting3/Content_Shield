@@ -17,7 +17,7 @@ def verify_api_key(
 ) -> None:
     """Optional API key auth for /api/v1 endpoints.
 
-    If `J7_API_KEY` is set, requests must include a matching `X-API-Key` header.
+    If ``J7_API_KEY`` is set, requests must include a matching ``X-API-Key`` header.
     """
     if settings.api_key and x_api_key != settings.api_key:
         raise HTTPException(status_code=401, detail="Invalid or missing API key")

@@ -1,4 +1,4 @@
-"""Readability Scorer — Flesch-Kincaid readability gate."""
+"""Readability Scorer — Flesch-Kincaid readability gate with grade-level reporting."""
 
 from __future__ import annotations
 

@@ -59,3 +59,32 @@ class TestForbiddenPhraseDetector:
         result = v.validate("bad bad bad")
         assert result.passed is False
         assert len(result.findings) == 3
+
+    def test_validator_name(self):
+        v = ForbiddenPhraseDetector()
+        result = v.validate("Test content.")
+        assert result.validator_name == "forbidden_phrases"
+
+    def test_severity_is_error(self):
+        v = ForbiddenPhraseDetector()
+        result = v.validate("Let's delve into it.")
+        for f in result.findings:
+            assert f.severity.value == "error"
+
+    def test_phrase_in_metadata(self):
+        v = ForbiddenPhraseDetector(config={"forbidden_phrases": ["apple"]})
+        result = v.validate("I like apple pie.")
+        assert result.findings[0].metadata["phrase"] == "apple"
+
+    def test_multiword_phrase(self):
+        v = ForbiddenPhraseDetector()
+        result = v.validate("At the end of the day we should circle back.")
+        phrases = [f.metadata["phrase"] for f in result.findings]
+        assert "at the end of the day" in phrases
+        assert "circle back" in phrases
+
+    def test_no_partial_match_in_longer_word(self):
+        v = ForbiddenPhraseDetector(config={"forbidden_phrases": ["cat"]})
+        result = v.validate("The concatenation of strings is great.")
+        assert result.passed is False
+        assert len(result.findings) >= 1

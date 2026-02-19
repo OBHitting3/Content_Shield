@@ -19,13 +19,15 @@ class TestValidationEngine:
         assert "brand_voice" in names
         assert "prompt_injection" in names
         assert "readability" in names
+        assert "toxicity" in names
+        assert len(names) == 6
 
     def test_validate_clean_text(self):
         engine = self._engine()
         response = engine.validate_text(
             "We deliver professional solutions for our customers every day."
         )
-        assert response.validators_run == 5
+        assert response.validators_run == 6
         assert response.text_length > 0
 
     def test_validate_with_pii(self):
@@ -49,13 +51,13 @@ class TestValidationEngine:
         engine = self._engine()
         request = ValidationRequest(text="Hello world.", validators=["all"])
         response = engine.run(request)
-        assert response.validators_run == 5
+        assert response.validators_run == 6
 
     def test_unknown_validator_ignored(self):
         engine = self._engine()
         response = engine.validate_text("Hello.", validators=["nonexistent"])
         assert response.validators_run == 0
-        assert response.passed is False  # zero validators = not passed
+        assert response.passed is False
 
     def test_config_overrides(self):
         engine = self._engine()
@@ -109,7 +111,7 @@ class TestValidationEngine:
             side_effect=RuntimeError("boom"),
         ):
             response = engine.validate_text("Normal content for testing.")
-        assert response.validators_run == 5
+        assert response.validators_run == 6
         readability = next(r for r in response.results if r.validator_name == "readability")
         assert readability.passed is False
 
@@ -117,7 +119,7 @@ class TestValidationEngine:
         engine = self._engine()
         response = engine.validate_text("Héllo wörld! 你好世界 🌍")
         assert response.text_length > 0
-        assert response.validators_run == 5
+        assert response.validators_run == 6
 
     def test_max_text_length_enforced(self):
         settings = Settings(max_text_length=50)
@@ -135,4 +137,27 @@ class TestValidationEngine:
         settings = Settings(max_text_length=500)
         engine = ValidationEngine(settings=settings)
         response = engine.validate_text("Short text.")
-        assert response.validators_run == 5
+        assert response.validators_run == 6
+
+    def test_response_has_risk_taxonomy(self):
+        engine = self._engine()
+        response = engine.validate_text("Test content.")
+        assert response.risk is not None
+        assert response.risk.version == "v1"
+        assert response.risk.risk_level in ("GREEN", "YELLOW", "ORANGE", "RED")
+
+    def test_empty_validators_list_defaults_to_all(self):
+        engine = self._engine()
+        request = ValidationRequest(text="Hello world.", validators=[])
+        response = engine.run(request)
+        assert response.validators_run == 6
+
+    def test_toxicity_validator_runs(self):
+        engine = self._engine()
+        response = engine.validate_text(
+            "I will kill you and destroy everything.",
+            validators=["toxicity"],
+        )
+        assert response.validators_run == 1
+        tox = next(r for r in response.results if r.validator_name == "toxicity")
+        assert tox.passed is False

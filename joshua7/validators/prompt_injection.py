@@ -1,4 +1,4 @@
-"""Prompt Injection Detector — catches hidden prompt-injection attempts."""
+"""Prompt Injection Detector — catches hidden prompt-injection attempts (15 pattern families)."""
 
 from __future__ import annotations
 
@@ -49,6 +49,26 @@ _INJECTION_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     )),
     ("act_as", re.compile(
         r"(?:act|behave|respond)\s+as\s+(?:if\s+)?(?:you\s+(?:are|were)\s+)?(?:a\s+)?(?:different|new|another)",
+        re.IGNORECASE,
+    )),
+    ("token_manipulation", re.compile(
+        r"(?:set|change|modify)\s+(?:your\s+)?(?:max_tokens|temperature|top_p|system)\s*(?:to|=)",
+        re.IGNORECASE,
+    )),
+    ("context_boundary", re.compile(
+        r"(?:</s>|\[/?INST\]|\[/?SYS\]|<\|(?:im_(?:start|end)|system|endoftext)\|>)",
+        re.IGNORECASE,
+    )),
+    ("markdown_exfil", re.compile(
+        r"!\[[^\]]*\]\(https?://[^\s)]+\?[^\s)]*(?:text|data|q|input)=",
+        re.IGNORECASE,
+    )),
+    ("developer_mode", re.compile(
+        r"(?:enable|activate|enter)\s+(?:developer|dev|debug|god)\s+mode",
+        re.IGNORECASE,
+    )),
+    ("privilege_escalation", re.compile(
+        r"(?:grant|give)\s+(?:me\s+)?(?:admin|root|sudo|superuser)\s+(?:access|privileges?|rights?|mode)",
         re.IGNORECASE,
     )),
 ]

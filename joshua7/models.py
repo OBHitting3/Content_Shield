@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 MAX_TEXT_LENGTH = 500_000
 
@@ -64,9 +64,16 @@ class ValidationRequest(BaseModel):
         description="Per-request config overrides keyed by validator name.",
     )
 
+    @field_validator("validators")
+    @classmethod
+    def validators_not_empty(cls, v: list[str]) -> list[str]:
+        if not v:
+            return ["all"]
+        return v
+
 
 class RiskAxis(BaseModel):
-    """Score for a single axis of the RISK_TAXONOMY_v0."""
+    """Score for a single axis of the risk taxonomy."""
 
     axis: str
     label: str
@@ -76,13 +83,14 @@ class RiskAxis(BaseModel):
 
 
 class RiskTaxonomy(BaseModel):
-    """RISK_TAXONOMY_v0 composite risk assessment."""
+    """RISK_TAXONOMY_v1 composite risk assessment."""
 
+    version: str = Field(default="v1", description="Taxonomy version identifier.")
     composite_risk_score: float = Field(
         default=0.0,
         ge=0.0,
         le=100.0,
-        description="Weighted composite risk score (0.0–100.0).",
+        description="Weighted composite risk score (0.0-100.0).",
     )
     risk_level: str = Field(
         default="GREEN",

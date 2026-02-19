@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
 import yaml
 from pydantic import Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
 
 _DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "default.yaml"
 
@@ -30,19 +33,15 @@ _DEFAULT_FORBIDDEN_PHRASES = [
 class Settings(BaseSettings):
     """Global application settings, loadable from env vars or YAML."""
 
+    model_config = SettingsConfigDict(env_prefix="J7_", env_nested_delimiter="__")
+
     app_name: str = "Joshua 7"
     debug: bool = False
     host: str = "0.0.0.0"
     port: int = 8000
     log_level: str = "info"
 
-    api_key: str | None = Field(
-        default=None,
-        description=(
-            "Optional API key for FastAPI endpoints. If set, requests to /api/v1/* must "
-            "include matching X-API-Key header."
-        ),
-    )
+    max_text_length: int = 500_000
 
     forbidden_phrases: list[str] = Field(default_factory=lambda: list(_DEFAULT_FORBIDDEN_PHRASES))
     pii_patterns_enabled: list[str] = Field(default_factory=lambda: ["email", "phone", "ssn"])
@@ -51,11 +50,8 @@ class Settings(BaseSettings):
     brand_voice_keywords: list[str] = Field(default_factory=list)
     brand_voice_tone: str = "professional"
 
-    prompt_injection_threshold: float = 0.6
     readability_min_score: float = 30.0
     readability_max_score: float = 80.0
-
-    model_config = {"env_prefix": "J7_"}
 
     @classmethod
     def from_yaml(cls, path: Path | str | None = None) -> Settings:
@@ -64,7 +60,12 @@ class Settings(BaseSettings):
         if config_path.exists():
             with open(config_path) as f:
                 raw = yaml.safe_load(f) or {}
+            if not isinstance(raw, dict):
+                logger.warning("YAML config at %s is not a mapping — ignoring", config_path)
+                raw = {}
             overrides = raw
+        else:
+            logger.debug("Config file not found at %s — using defaults", config_path)
         return cls(**overrides)
 
 

@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
 
 from joshua7.models import Severity, ValidationFinding, ValidationResult
 from joshua7.validators.base import BaseValidator
 
+logger = logging.getLogger(__name__)
+
 _TONE_PENALTY_WORDS: dict[str, list[str]] = {
     "professional": [
         "lol", "omg", "bruh", "gonna", "wanna", "kinda", "sorta",
-        "tbh", "ngl", "fr fr", "yo ", "dude", "bro",
+        "tbh", "ngl", "fr fr", "yo", "dude", "bro",
     ],
     "casual": [
         "hereby", "aforementioned", "pursuant", "notwithstanding",
@@ -20,9 +23,21 @@ _TONE_PENALTY_WORDS: dict[str, list[str]] = {
 }
 
 _POSITIVE_SIGNALS = [
-    r"\b(we|our|us)\b",
-    r"\b(you|your)\b",
+    re.compile(r"\b(?:we|our|us)\b", re.IGNORECASE),
+    re.compile(r"\b(?:you|your)\b", re.IGNORECASE),
 ]
+
+
+def _build_word_patterns(words: list[str]) -> list[tuple[str, re.Pattern[str]]]:
+    """Build word-boundary regex patterns to avoid substring false positives."""
+    pairs = []
+    for w in words:
+        if " " in w:
+            pat = re.compile(re.escape(w), re.IGNORECASE)
+        else:
+            pat = re.compile(rf"\b{re.escape(w)}\b", re.IGNORECASE)
+        pairs.append((w, pat))
+    return pairs
 
 
 class BrandVoiceScorer(BaseValidator):
@@ -35,19 +50,20 @@ class BrandVoiceScorer(BaseValidator):
         self._target_score = self.config.get("brand_voice_target_score", 60.0)
         self._keywords = [k.lower() for k in self.config.get("brand_voice_keywords", [])]
         self._tone = self.config.get("brand_voice_tone", "professional")
+        raw_words = _TONE_PENALTY_WORDS.get(self._tone, [])
+        self._penalty_patterns = _build_word_patterns(raw_words)
 
     def validate(self, text: str) -> ValidationResult:
         findings: list[ValidationFinding] = []
-        score = 70.0  # baseline
+        score = 70.0
 
-        lower = text.lower()
-        words = lower.split()
+        words = text.split()
         word_count = max(len(words), 1)
 
-        penalty_words = _TONE_PENALTY_WORDS.get(self._tone, [])
         penalty_count = 0
-        for pw in penalty_words:
-            occurrences = lower.count(pw)
+        for pw, pattern in self._penalty_patterns:
+            matches = pattern.findall(text)
+            occurrences = len(matches)
             if occurrences > 0:
                 penalty_count += occurrences
                 findings.append(
@@ -62,13 +78,16 @@ class BrandVoiceScorer(BaseValidator):
         score -= min(penalty_count * 5.0, 40.0)
 
         if self._keywords:
-            keyword_hits = sum(1 for kw in self._keywords if kw in lower)
+            keyword_hits = sum(
+                1 for kw in self._keywords
+                if re.search(rf"\b{re.escape(kw)}\b", text, re.IGNORECASE)
+            )
             keyword_ratio = keyword_hits / len(self._keywords)
             score += keyword_ratio * 15.0
 
         signal_hits = 0
         for pattern in _POSITIVE_SIGNALS:
-            signal_hits += len(re.findall(pattern, lower))
+            signal_hits += len(pattern.findall(text))
         engagement_ratio = min(signal_hits / word_count, 0.15)
         score += engagement_ratio * 100.0
 

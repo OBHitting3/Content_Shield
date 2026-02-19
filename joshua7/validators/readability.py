@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import textstat
 
 from joshua7.models import Severity, ValidationFinding, ValidationResult
 from joshua7.validators.base import BaseValidator
+
+logger = logging.getLogger(__name__)
 
 
 class ReadabilityScorer(BaseValidator):
@@ -57,6 +60,18 @@ class ReadabilityScorer(BaseValidator):
                         "flesch_score": fk_score,
                         "grade_level": grade_level,
                         "threshold": "max",
+                    },
+                )
+            )
+        else:
+            findings.append(
+                ValidationFinding(
+                    validator_name=self.name,
+                    severity=Severity.INFO,
+                    message=f"Flesch score {fk_score:.1f}, grade level {grade_level:.1f}",
+                    metadata={
+                        "flesch_score": fk_score,
+                        "grade_level": grade_level,
                     },
                 )
             )

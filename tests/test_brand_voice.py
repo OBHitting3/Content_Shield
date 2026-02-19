@@ -47,3 +47,23 @@ class TestBrandVoiceScorer:
         v = BrandVoiceScorer()
         result = v.validate("Test content.")
         assert result.validator_name == "brand_voice"
+
+    def test_no_false_positive_on_bro_in_broken(self):
+        """Word boundary fix: 'bro' should not match inside 'broken'."""
+        v = BrandVoiceScorer()
+        result = v.validate("The broken system was repaired by our professional team.")
+        off_tone_words = [f.metadata.get("word") for f in result.findings]
+        assert "bro" not in off_tone_words
+
+    def test_yo_does_not_match_your(self):
+        """Word boundary fix: 'yo' should not match inside 'your'."""
+        v = BrandVoiceScorer()
+        result = v.validate("Your professional results exceed expectations.")
+        off_tone_words = [f.metadata.get("word") for f in result.findings]
+        assert "yo" not in off_tone_words
+
+    def test_yo_matches_standalone(self):
+        v = BrandVoiceScorer()
+        result = v.validate("Yo check this out dude.")
+        off_tone_words = [f.metadata.get("word") for f in result.findings]
+        assert "yo" in off_tone_words

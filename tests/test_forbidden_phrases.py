@@ -48,3 +48,14 @@ class TestForbiddenPhraseDetector:
         v = ForbiddenPhraseDetector(config={"forbidden_phrases": []})
         result = v.validate("As an AI, I want to delve into synergy.")
         assert result.passed is True
+
+    def test_unicode_content(self):
+        v = ForbiddenPhraseDetector()
+        result = v.validate("Héllo wörld! 你好世界 🌍 This is fine.")
+        assert result.passed is True
+
+    def test_repeated_phrase(self):
+        v = ForbiddenPhraseDetector(config={"forbidden_phrases": ["bad"]})
+        result = v.validate("bad bad bad")
+        assert result.passed is False
+        assert len(result.findings) == 3

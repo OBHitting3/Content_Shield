@@ -1,0 +1,268 @@
+{
+  "name": "LeadLatch — Speed-to-Lead Autopilot",
+  "description": "Triggered by lead-intake Edge Function. Sends immediate reply, schedules follow-ups, posts to Slack, writes events back to Supabase.",
+  "nodes": [
+    {
+      "id": "1",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "description": "Receives POST from Supabase lead-intake Edge Function",
+      "config": {
+        "httpMethod": "POST",
+        "path": "lead-created",
+        "responseMode": "onReceived",
+        "responseCode": 200
+      },
+      "input": null,
+      "output": {
+        "lead_id": "uuid",
+        "org_id": "uuid",
+        "name": "string",
+        "email": "string | null",
+        "phone": "string | null",
+        "message": "string | null",
+        "source_url": "string | null",
+        "utm_source": "string | null",
+        "created_at": "ISO 8601 timestamp"
+      }
+    },
+    {
+      "id": "2",
+      "name": "Generate Idempotency Key",
+      "type": "n8n-nodes-base.set",
+      "description": "Create deterministic idempotency key from lead_id + action type to prevent duplicate processing",
+      "config": {
+        "values": {
+          "idempotency_key": "={{ $json.lead_id }}_welcome_email",
+          "followup1_key": "={{ $json.lead_id }}_followup_1",
+          "followup2_key": "={{ $json.lead_id }}_followup_2"
+        }
+      }
+    },
+    {
+      "id": "3",
+      "name": "Check Has Email",
+      "type": "n8n-nodes-base.if",
+      "description": "Only send email if lead has an email address",
+      "config": {
+        "condition": "={{ $json.email !== null && $json.email !== '' }}"
+      }
+    },
+    {
+      "id": "4",
+      "name": "Send Welcome Email",
+      "type": "n8n-nodes-base.emailSend",
+      "description": "Immediate auto-reply acknowledging lead submission",
+      "config": {
+        "fromEmail": "hello@yourcompany.com",
+        "toEmail": "={{ $json.email }}",
+        "subject": "Thanks for reaching out, {{ $json.name }}!",
+        "text": "Hi {{ $json.name }},\n\nThanks for getting in touch! We received your message and will follow up shortly.\n\nBest,\nThe Team"
+      },
+      "note": "Replace with your SMTP credentials or use SendGrid/Resend node"
+    },
+    {
+      "id": "5",
+      "name": "Log Welcome Email Event",
+      "type": "n8n-nodes-base.httpRequest",
+      "description": "POST event back to Supabase via n8n-event-ingest Edge Function",
+      "config": {
+        "method": "POST",
+        "url": "{{ $env.SUPABASE_URL }}/functions/v1/n8n-event-ingest",
+        "headers": {
+          "Content-Type": "application/json",
+          "x-leadlatch-secret": "{{ $env.N8N_EVENT_INGEST_SECRET }}"
+        },
+        "body": {
+          "lead_id": "={{ $json.lead_id }}",
+          "org_id": "={{ $json.org_id }}",
+          "event_type": "email_sent",
+          "idempotency_key": "={{ $json.idempotency_key }}",
+          "payload": {
+            "template": "welcome",
+            "to": "={{ $json.email }}",
+            "subject": "Thanks for reaching out!"
+          }
+        }
+      }
+    },
+    {
+      "id": "6",
+      "name": "Update Status to Working",
+      "type": "n8n-nodes-base.httpRequest",
+      "description": "Move lead to 'working' status after first contact",
+      "config": {
+        "method": "POST",
+        "url": "{{ $env.SUPABASE_URL }}/functions/v1/n8n-event-ingest",
+        "headers": {
+          "Content-Type": "application/json",
+          "x-leadlatch-secret": "{{ $env.N8N_EVENT_INGEST_SECRET }}"
+        },
+        "body": {
+          "lead_id": "={{ $json.lead_id }}",
+          "org_id": "={{ $json.org_id }}",
+          "event_type": "status_changed",
+          "new_status": "working",
+          "idempotency_key": "={{ $json.lead_id }}_status_working"
+        }
+      }
+    },
+    {
+      "id": "7",
+      "name": "Wait 24 Hours",
+      "type": "n8n-nodes-base.wait",
+      "description": "Pause before first follow-up",
+      "config": {
+        "amount": 24,
+        "unit": "hours"
+      }
+    },
+    {
+      "id": "8",
+      "name": "Send Follow-up 1",
+      "type": "n8n-nodes-base.emailSend",
+      "description": "First follow-up email (24h after lead creation)",
+      "config": {
+        "fromEmail": "hello@yourcompany.com",
+        "toEmail": "={{ $json.email }}",
+        "subject": "Following up — {{ $json.name }}",
+        "text": "Hi {{ $json.name }},\n\nJust checking in to see if you had any questions. Happy to help!\n\nBest,\nThe Team"
+      }
+    },
+    {
+      "id": "9",
+      "name": "Log Follow-up 1 Event",
+      "type": "n8n-nodes-base.httpRequest",
+      "description": "Record follow-up email event",
+      "config": {
+        "method": "POST",
+        "url": "{{ $env.SUPABASE_URL }}/functions/v1/n8n-event-ingest",
+        "body": {
+          "lead_id": "={{ $json.lead_id }}",
+          "org_id": "={{ $json.org_id }}",
+          "event_type": "followup_sent",
+          "idempotency_key": "={{ $json.followup1_key }}",
+          "payload": {
+            "template": "followup_1",
+            "sequence_number": 1
+          }
+        }
+      }
+    },
+    {
+      "id": "10",
+      "name": "Wait 72 Hours",
+      "type": "n8n-nodes-base.wait",
+      "description": "Pause before second follow-up (3 days after first follow-up)",
+      "config": {
+        "amount": 72,
+        "unit": "hours"
+      }
+    },
+    {
+      "id": "11",
+      "name": "Send Follow-up 2",
+      "type": "n8n-nodes-base.emailSend",
+      "description": "Second follow-up email (4 days after lead creation)",
+      "config": {
+        "fromEmail": "hello@yourcompany.com",
+        "toEmail": "={{ $json.email }}",
+        "subject": "Last check-in — {{ $json.name }}",
+        "text": "Hi {{ $json.name }},\n\nWanted to reach out one more time. If now isn't the right time, no worries — feel free to reach out whenever you're ready.\n\nBest,\nThe Team"
+      }
+    },
+    {
+      "id": "12",
+      "name": "Log Follow-up 2 Event",
+      "type": "n8n-nodes-base.httpRequest",
+      "description": "Record second follow-up event",
+      "config": {
+        "method": "POST",
+        "url": "{{ $env.SUPABASE_URL }}/functions/v1/n8n-event-ingest",
+        "body": {
+          "lead_id": "={{ $json.lead_id }}",
+          "org_id": "={{ $json.org_id }}",
+          "event_type": "followup_sent",
+          "idempotency_key": "={{ $json.followup2_key }}",
+          "payload": {
+            "template": "followup_2",
+            "sequence_number": 2
+          }
+        }
+      }
+    },
+    {
+      "id": "13",
+      "name": "Post to Slack (Optional)",
+      "type": "n8n-nodes-base.slack",
+      "description": "Notify team in Slack when a new lead arrives (runs in parallel with email flow)",
+      "config": {
+        "channel": "#leads",
+        "text": "New lead: {{ $json.name }} ({{ $json.email || 'no email' }}) from {{ $json.source_url || 'direct' }}"
+      },
+      "note": "Connect after node 2 (parallel branch). Requires Slack OAuth credentials in n8n."
+    },
+    {
+      "id": "14",
+      "name": "Log Slack Event",
+      "type": "n8n-nodes-base.httpRequest",
+      "description": "Record Slack notification event",
+      "config": {
+        "method": "POST",
+        "url": "{{ $env.SUPABASE_URL }}/functions/v1/n8n-event-ingest",
+        "body": {
+          "lead_id": "={{ $json.lead_id }}",
+          "org_id": "={{ $json.org_id }}",
+          "event_type": "slack_posted",
+          "idempotency_key": "={{ $json.lead_id }}_slack_notify",
+          "payload": {
+            "channel": "#leads"
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "1 -> 2": "Webhook fires, generates idempotency keys",
+    "2 -> 3": "Check if lead has email",
+    "3 (true) -> 4": "Send welcome email",
+    "4 -> 5": "Log email_sent event",
+    "5 -> 6": "Update status to working",
+    "6 -> 7": "Wait 24h",
+    "7 -> 8": "Send follow-up 1",
+    "8 -> 9": "Log followup_sent event",
+    "9 -> 10": "Wait 72h",
+    "10 -> 11": "Send follow-up 2",
+    "11 -> 12": "Log followup_sent event",
+    "2 -> 13": "PARALLEL: Post to Slack",
+    "13 -> 14": "Log slack_posted event",
+    "3 (false) -> 13": "No email — still notify Slack"
+  },
+  "webhook_payload_shape": {
+    "lead_id": "uuid (required)",
+    "org_id": "uuid (required)",
+    "name": "string (required)",
+    "email": "string | null",
+    "phone": "string | null",
+    "message": "string | null",
+    "source_url": "string | null",
+    "utm_source": "string | null",
+    "created_at": "ISO 8601 timestamp"
+  },
+  "idempotency_strategy": {
+    "description": "Each action generates a deterministic key: {lead_id}_{action_name}. The n8n-event-ingest Edge Function checks for existing events with the same idempotency_key in payload before inserting. If found, returns 200 with deduplicated=true.",
+    "keys": [
+      "{lead_id}_welcome_email",
+      "{lead_id}_followup_1",
+      "{lead_id}_followup_2",
+      "{lead_id}_slack_notify",
+      "{lead_id}_status_working"
+    ]
+  },
+  "environment_variables_required": [
+    "SUPABASE_URL",
+    "N8N_EVENT_INGEST_SECRET",
+    "SMTP credentials (or SendGrid/Resend API key)",
+    "Slack OAuth token (optional)"
+  ]
+}

@@ -29,6 +29,12 @@ _DEFAULT_FORBIDDEN_PHRASES = [
     "at the end of the day",
 ]
 
+_SECURITY_SENSITIVE_KEYS = frozenset({
+    "pii_patterns_enabled",
+    "max_text_length",
+    "api_key",
+})
+
 
 class Settings(BaseSettings):
     """Global application settings, loadable from env vars or YAML."""
@@ -54,6 +60,27 @@ class Settings(BaseSettings):
     readability_max_score: float = 80.0
 
     api_key: str = ""
+
+    cors_allowed_origins: list[str] = Field(
+        default_factory=lambda: ["*"],
+        description="Allowed CORS origins. Use ['*'] only in development.",
+    )
+    allowed_hosts: list[str] = Field(
+        default_factory=lambda: ["*"],
+        description="Allowed Host header values. Set explicitly in production.",
+    )
+    rate_limit_requests: int = Field(
+        default=60,
+        description="Max requests per rate_limit_window_seconds per IP.",
+    )
+    rate_limit_window_seconds: int = Field(
+        default=60,
+        description="Sliding window size for rate limiting (seconds).",
+    )
+    max_request_body_bytes: int = Field(
+        default=2_097_152,
+        description="Max request body size in bytes (default 2 MiB).",
+    )
 
     @classmethod
     def from_yaml(cls, path: Path | str | None = None) -> Settings:

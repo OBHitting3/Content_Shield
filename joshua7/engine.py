@@ -7,7 +7,7 @@ import uuid
 from typing import Any
 
 from joshua7 import __version__
-from joshua7.config import Settings, get_settings
+from joshua7.config import _SECURITY_SENSITIVE_KEYS, Settings, get_settings
 from joshua7.models import (
     RiskAxis,
     RiskTaxonomy,
@@ -25,6 +25,7 @@ from joshua7.validators.prompt_injection import PromptInjectionDetector
 from joshua7.validators.readability import ReadabilityScorer
 
 logger = logging.getLogger(__name__)
+audit_logger = logging.getLogger("joshua7.audit")
 
 _REGISTRY: dict[str, type[BaseValidator]] = {
     "forbidden_phrases": ForbiddenPhraseDetector,
@@ -225,7 +226,17 @@ class ValidationEngine:
         for name in selected:
             validator = self._validators[name]
             if name in request.config_overrides:
-                merged = {**self._settings_to_config(), **request.config_overrides[name]}
+                raw_overrides = request.config_overrides[name]
+                stripped = {
+                    k: v for k, v in raw_overrides.items()
+                    if k not in _SECURITY_SENSITIVE_KEYS
+                }
+                if len(stripped) < len(raw_overrides):
+                    blocked = set(raw_overrides) - set(stripped)
+                    logger.warning(
+                        "Blocked security-sensitive config_overrides: %s", blocked
+                    )
+                merged = {**self._settings_to_config(), **stripped}
                 validator = _REGISTRY[name](config=merged)
             try:
                 result = validator.validate(request.text)
@@ -240,6 +251,21 @@ class ValidationEngine:
 
         all_passed = bool(results) and all(r.passed for r in results)
         risk = compute_risk_taxonomy(results)
+
+        for r in results:
+            if r.validator_name == "pii" and not r.passed:
+                audit_logger.warning(
+                    "PII_DETECTED request_id=%s finding_count=%d",
+                    rid,
+                    len(r.findings),
+                )
+            if r.validator_name == "prompt_injection" and not r.passed:
+                patterns = [f.metadata.get("pattern", "") for f in r.findings]
+                audit_logger.warning(
+                    "INJECTION_DETECTED request_id=%s patterns=%s",
+                    rid,
+                    patterns,
+                )
 
         return ValidationResponse(
             request_id=rid,

@@ -100,16 +100,49 @@ def _axis_score_from_results(
     return min(total_points / contributor_count, 100.0)
 
 
+def _critical_escalation(results: list[ValidationResult]) -> float:
+    """Return an escalation bonus based on CRITICAL-severity findings.
+
+    CRITICAL findings represent hard failures (PII leaks, active injection
+    attacks) that must dominate the composite regardless of axis weight.
+
+    Escalation schedule:
+        1 CRITICAL axis  → +40  (guarantees YELLOW, likely ORANGE with base)
+        2 CRITICAL axes  → +80  (guarantees RED with any non-zero base)
+        3+ CRITICAL axes → +100 (hard RED)
+    """
+    axes_with_criticals: set[str] = set()
+    results_map = {r.validator_name: r for r in results}
+
+    for axis_def in _RISK_AXES:
+        for vname in axis_def["validators"]:
+            result = results_map.get(vname)
+            if result is None:
+                continue
+            if any(f.severity == Severity.CRITICAL for f in result.findings):
+                axes_with_criticals.add(axis_def["axis"])
+                break
+
+    n = len(axes_with_criticals)
+    if n == 0:
+        return 0.0
+    if n == 1:
+        return 40.0
+    if n == 2:
+        return 80.0
+    return 100.0
+
+
 def compute_risk_taxonomy(results: list[ValidationResult]) -> RiskTaxonomy:
     """Build a RISK_TAXONOMY_v0 from a list of validator results."""
     results_map = {r.validator_name: r for r in results}
     axes: list[RiskAxis] = []
-    composite = 0.0
+    weighted_sum = 0.0
 
     for axis_def in _RISK_AXES:
         raw = _axis_score_from_results(axis_def["validators"], results_map)
         weighted = raw * axis_def["weight"]
-        composite += weighted
+        weighted_sum += weighted
         axes.append(RiskAxis(
             axis=axis_def["axis"],
             label=axis_def["label"],
@@ -118,7 +151,9 @@ def compute_risk_taxonomy(results: list[ValidationResult]) -> RiskTaxonomy:
             weighted_score=round(weighted, 2),
         ))
 
-    composite = round(min(composite, 100.0), 1)
+    escalation = _critical_escalation(results)
+    composite = round(min(weighted_sum + escalation, 100.0), 1)
+
     return RiskTaxonomy(
         composite_risk_score=composite,
         risk_level=_risk_level(composite),

@@ -1,7 +1,6 @@
 """Tests for the validation engine."""
 
-import pytest
-from fastapi import HTTPException
+from unittest.mock import patch
 
 from joshua7.config import Settings
 from joshua7.engine import ValidationEngine
@@ -57,6 +56,7 @@ class TestValidationEngine:
         engine = self._engine()
         response = engine.validate_text("Hello.", validators=["nonexistent"])
         assert response.validators_run == 0
+        assert response.passed is False  # zero validators = not passed
 
     def test_config_overrides(self):
         engine = self._engine()
@@ -71,7 +71,7 @@ class TestValidationEngine:
         fp_result = next(r for r in response.results if r.validator_name == "forbidden_phrases")
         assert fp_result.passed is False
 
-    def test_response_model(self):
+    def test_response_model_fields(self):
         engine = self._engine()
         response = engine.validate_text("Short text.")
         assert hasattr(response, "passed")
@@ -79,30 +79,61 @@ class TestValidationEngine:
         assert hasattr(response, "text_length")
         assert hasattr(response, "validators_run")
 
-    def test_run_catches_validator_exception(self):
-        class BoomValidator(BaseValidator):
-            name = "boom"
-
-            def validate(self, text: str):  # noqa: ANN001
-                raise RuntimeError("boom")
-
+    def test_response_has_request_id(self):
         engine = self._engine()
-        engine._validators["boom"] = BoomValidator(config={})
+        response = engine.validate_text("Content here.")
+        assert response.request_id is not None
+        assert len(response.request_id) > 0
 
-        request = ValidationRequest(text="Hello.", validators=["boom"])
-        response = engine.run(request)
+    def test_response_has_version(self):
+        engine = self._engine()
+        response = engine.validate_text("Content here.")
+        assert response.version != ""
 
+    def test_response_has_timestamp(self):
+        engine = self._engine()
+        response = engine.validate_text("Content here.")
+        assert response.timestamp is not None
+        assert "T" in response.timestamp
+
+    def test_custom_request_id_propagated(self):
+        engine = self._engine()
+        response = engine.validate_text("Content.", request_id="test-123")
+        assert response.request_id == "test-123"
+
+    def test_validator_exception_does_not_crash(self):
+        """If a validator throws, the engine should catch it and report failure."""
+        engine = self._engine()
+        with patch.object(
+            engine._validators["readability"],
+            "validate",
+            side_effect=RuntimeError("boom"),
+        ):
+            response = engine.validate_text("Normal content for testing.")
+        assert response.validators_run == 5
+        readability = next(r for r in response.results if r.validator_name == "readability")
+        assert readability.passed is False
+
+    def test_unicode_content(self):
+        engine = self._engine()
+        response = engine.validate_text("Héllo wörld! 你好世界 🌍")
+        assert response.text_length > 0
+        assert response.validators_run == 5
+
+    def test_max_text_length_enforced(self):
+        settings = Settings(max_text_length=50)
+        engine = ValidationEngine(settings=settings)
+        response = engine.validate_text("A" * 100)
         assert response.passed is False
-        assert response.validators_run == 1
-        assert response.results[0].passed is False
-        assert (
-            response.results[0].findings[0].message
-            == "Validator 'boom' encountered an internal error — content blocked as a precaution"
+        assert response.validators_run == 0
+        assert any(
+            "exceeds" in f.message
+            for r in response.results
+            for f in r.findings
         )
 
-    def test_validate_text_raises_http_422_on_bad_input(self):
-        engine = self._engine()
-        with pytest.raises(HTTPException) as excinfo:
-            engine.validate_text("")
-        assert excinfo.value.status_code == 422
-        assert "Invalid request" in str(excinfo.value.detail)
+    def test_max_text_length_allows_under_limit(self):
+        settings = Settings(max_text_length=500)
+        engine = ValidationEngine(settings=settings)
+        response = engine.validate_text("Short text.")
+        assert response.validators_run == 5

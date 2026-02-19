@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import uuid
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, Field
+
+MAX_TEXT_LENGTH = 500_000
 
 
 class Severity(str, Enum):
@@ -45,7 +49,12 @@ class ValidationResult(BaseModel):
 class ValidationRequest(BaseModel):
     """Inbound request to validate content."""
 
-    text: str = Field(..., min_length=1, description="Content to validate.")
+    text: str = Field(
+        ...,
+        min_length=1,
+        max_length=MAX_TEXT_LENGTH,
+        description=f"Content to validate (max {MAX_TEXT_LENGTH:,} chars).",
+    )
     validators: list[str] = Field(
         default=["all"],
         description='List of validator names to run, or ["all"].',
@@ -59,6 +68,15 @@ class ValidationRequest(BaseModel):
 class ValidationResponse(BaseModel):
     """Outbound response from the validation engine."""
 
+    request_id: str = Field(
+        default_factory=lambda: uuid.uuid4().hex,
+        description="Unique identifier for this validation run.",
+    )
+    timestamp: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat(),
+        description="ISO-8601 UTC timestamp of this response.",
+    )
+    version: str = Field(default="", description="Engine version.")
     passed: bool = Field(description="True only if every validator passed.")
     results: list[ValidationResult] = Field(default_factory=list)
     text_length: int = 0

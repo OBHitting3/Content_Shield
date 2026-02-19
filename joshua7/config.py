@@ -60,7 +60,7 @@ class Settings(BaseSettings):
         config_path = Path(path) if path else _DEFAULT_CONFIG_PATH
         overrides: dict[str, Any] = {}
         if config_path.exists():
-            with open(config_path) as f:
+            with open(config_path, encoding="utf-8") as f:
                 raw = yaml.safe_load(f) or {}
             if not isinstance(raw, dict):
                 logger.warning("YAML config at %s is not a mapping — ignoring", config_path)

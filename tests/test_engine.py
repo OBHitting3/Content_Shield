@@ -136,3 +136,30 @@ class TestValidationEngine:
         engine = ValidationEngine(settings=settings)
         response = engine.validate_text("Short text.")
         assert response.validators_run == 5
+
+    def test_risk_taxonomy_present_in_response(self):
+        """Every response must include a populated risk taxonomy."""
+        engine = self._engine()
+        response = engine.validate_text(
+            "Our team delivers quality work for every customer."
+        )
+        assert response.risk is not None
+        assert response.risk.risk_level in ("GREEN", "YELLOW", "ORANGE", "RED")
+        assert 0.0 <= response.risk.composite_risk_score <= 100.0
+        assert len(response.risk.axes) == 5
+
+    def test_max_text_length_response_has_red_risk(self):
+        """Exceeding text length should yield RED risk level."""
+        settings = Settings(max_text_length=10)
+        engine = ValidationEngine(settings=settings)
+        response = engine.validate_text("A" * 50)
+        assert response.risk.risk_level == "RED"
+        assert response.risk.composite_risk_score == 100.0
+
+    def test_empty_validators_list_returns_not_passed(self):
+        """Requesting no validators explicitly (empty list) should return not passed."""
+        engine = self._engine()
+        request = ValidationRequest(text="Hello world.", validators=[])
+        response = engine.run(request)
+        assert response.validators_run == 0
+        assert response.passed is False

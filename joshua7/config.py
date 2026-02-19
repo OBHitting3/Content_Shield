@@ -53,6 +53,11 @@ class Settings(BaseSettings):
     readability_min_score: float = 30.0
     readability_max_score: float = 80.0
 
+    cors_allowed_origins: list[str] = Field(
+        default_factory=lambda: ["*"],
+        description="Allowed CORS origins. Use explicit origins in production.",
+    )
+
     api_key: str = ""
 
     @classmethod

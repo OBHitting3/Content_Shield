@@ -2,29 +2,34 @@
 
 from __future__ import annotations
 
+import secrets
+
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
-from joshua7.config import Settings, get_settings
 from joshua7.engine import ValidationEngine
 from joshua7.models import ValidationRequest, ValidationResponse
 
 router = APIRouter(tags=["validation"])
 
 
+def _get_engine(request: Request) -> ValidationEngine:
+    return request.app.state.engine
+
+
 def verify_api_key(
+    request: Request,
     x_api_key: str | None = Header(default=None, alias="X-API-Key"),
-    settings: Settings = Depends(get_settings),
 ) -> None:
     """Optional API key auth for /api/v1 endpoints.
 
-    If `J7_API_KEY` is set, requests must include a matching `X-API-Key` header.
+    Uses the Settings stored on app.state (same instance the engine uses)
+    and timing-safe comparison to prevent side-channel leaks.
     """
-    if settings.api_key and x_api_key != settings.api_key:
+    expected = request.app.state.settings.api_key
+    if not expected:
+        return
+    if x_api_key is None or not secrets.compare_digest(x_api_key, expected):
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
-
-
-def _get_engine(request: Request) -> ValidationEngine:
-    return request.app.state.engine
 
 
 @router.post("/validate", response_model=ValidationResponse, dependencies=[Depends(verify_api_key)])

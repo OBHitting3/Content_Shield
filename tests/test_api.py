@@ -126,3 +126,55 @@ class TestAPI:
         body = resp.text
         assert "secret@evil.com" not in body
         assert "123-45-6789" not in body
+
+    def test_security_headers_present(self, client):
+        """SECURITY: Key security headers must be set on every response."""
+        resp = client.get("/health")
+        assert resp.headers.get("X-Content-Type-Options") == "nosniff"
+        assert resp.headers.get("X-Frame-Options") == "DENY"
+        assert resp.headers.get("Cache-Control") == "no-store"
+        assert "strict-origin" in resp.headers.get("Referrer-Policy", "")
+
+    def test_malformed_request_id_replaced(self, client):
+        """SECURITY: Malformed X-Request-ID must be replaced, not echoed."""
+        resp = client.post(
+            "/api/v1/validate",
+            json={"text": "Test.", "validators": ["forbidden_phrases"]},
+            headers={"X-Request-ID": "bad\nheader\r\ninjection"},
+        )
+        rid = resp.headers.get("X-Request-ID", "")
+        assert "\n" not in rid
+        assert "\r" not in rid
+
+    def test_body_too_large_rejected(self, client):
+        """SECURITY: Oversized Content-Length must return 413."""
+        resp = client.post(
+            "/api/v1/validate",
+            json={"text": "x"},
+            headers={"Content-Length": "999999999"},
+        )
+        assert resp.status_code == 413
+
+    def test_docs_disabled_by_default(self, client):
+        """SECURITY: /docs should not be available when debug=false."""
+        resp = client.get("/docs")
+        assert resp.status_code == 404
+
+    def test_api_key_timing_safe(self, client_with_api_key):
+        """SECURITY: Missing API key returns 401."""
+        resp = client_with_api_key.get("/api/v1/validators")
+        assert resp.status_code == 401
+
+    def test_api_key_valid_passes(self, client_with_api_key):
+        resp = client_with_api_key.get(
+            "/api/v1/validators",
+            headers={"X-API-Key": "sekret"},
+        )
+        assert resp.status_code == 200
+
+    def test_api_key_wrong_value_rejected(self, client_with_api_key):
+        resp = client_with_api_key.get(
+            "/api/v1/validators",
+            headers={"X-API-Key": "wrong"},
+        )
+        assert resp.status_code == 401

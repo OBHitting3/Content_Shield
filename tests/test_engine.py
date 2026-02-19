@@ -136,3 +136,45 @@ class TestValidationEngine:
         engine = ValidationEngine(settings=settings)
         response = engine.validate_text("Short text.")
         assert response.validators_run == 5
+
+    def test_unsafe_config_overrides_stripped(self):
+        """SECURITY: Overrides for non-allowlisted keys must be silently dropped."""
+        engine = self._engine()
+        request = ValidationRequest(
+            text="Test content here.",
+            validators=["pii"],
+            config_overrides={
+                "pii": {"pii_patterns_enabled": []},
+            },
+        )
+        response = engine.run(request)
+        pii_result = next(r for r in response.results if r.validator_name == "pii")
+        assert pii_result is not None
+
+    def test_safe_config_overrides_applied(self):
+        """Safe overrides (e.g. forbidden_phrases) should still work."""
+        engine = self._engine()
+        request = ValidationRequest(
+            text="I ate a banana today.",
+            validators=["forbidden_phrases"],
+            config_overrides={
+                "forbidden_phrases": {"forbidden_phrases": ["banana"]},
+            },
+        )
+        response = engine.run(request)
+        fp_result = next(r for r in response.results if r.validator_name == "forbidden_phrases")
+        assert fp_result.passed is False
+
+    def test_validator_exception_produces_finding(self):
+        """When a validator throws, the failure result must include a finding."""
+        engine = self._engine()
+        with patch.object(
+            engine._validators["readability"],
+            "validate",
+            side_effect=RuntimeError("boom"),
+        ):
+            response = engine.validate_text("Normal content for testing.")
+        readability = next(r for r in response.results if r.validator_name == "readability")
+        assert readability.passed is False
+        assert len(readability.findings) == 1
+        assert "internal error" in readability.findings[0].message.lower()

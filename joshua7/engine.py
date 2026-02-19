@@ -220,12 +220,13 @@ class ValidationEngine:
             )
 
         selected = self._resolve_validators(request.validators)
+        safe_overrides = self._filter_overrides(request.config_overrides)
         results: list[ValidationResult] = []
 
         for name in selected:
             validator = self._validators[name]
-            if name in request.config_overrides:
-                merged = {**self._settings_to_config(), **request.config_overrides[name]}
+            if name in safe_overrides:
+                merged = {**self._settings_to_config(), **safe_overrides[name]}
                 validator = _REGISTRY[name](config=merged)
             try:
                 result = validator.validate(request.text)
@@ -234,7 +235,13 @@ class ValidationEngine:
                 result = ValidationResult(
                     validator_name=name,
                     passed=False,
-                    findings=[],
+                    findings=[
+                        ValidationFinding(
+                            validator_name=name,
+                            severity=Severity.ERROR,
+                            message=f"Validator '{name}' encountered an internal error.",
+                        ),
+                    ],
                 )
             results.append(result)
 
@@ -263,6 +270,27 @@ class ValidationEngine:
             validators=validators or ["all"],
         )
         return self.run(request, request_id=request_id)
+
+    _SAFE_OVERRIDE_KEYS: set[str] = {
+        "brand_voice_target_score",
+        "brand_voice_keywords",
+        "brand_voice_tone",
+        "readability_min_score",
+        "readability_max_score",
+        "forbidden_phrases",
+    }
+
+    @classmethod
+    def _filter_overrides(cls, overrides: dict[str, Any]) -> dict[str, Any]:
+        """Strip override keys that could weaken security-critical behaviour."""
+        filtered: dict[str, Any] = {}
+        for validator_name, override_dict in overrides.items():
+            if not isinstance(override_dict, dict):
+                continue
+            safe = {k: v for k, v in override_dict.items() if k in cls._SAFE_OVERRIDE_KEYS}
+            if safe:
+                filtered[validator_name] = safe
+        return filtered
 
     def _resolve_validators(self, names: list[str]) -> list[str]:
         if "all" in names:

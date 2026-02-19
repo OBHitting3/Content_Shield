@@ -14,6 +14,7 @@ env/
 .env
 .env.*
 !.env.example
+!.env.local.example
 *.log
 .mypy_cache/
 .pytest_cache/

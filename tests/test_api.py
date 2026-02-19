@@ -12,6 +12,7 @@ def client(monkeypatch: pytest.MonkeyPatch):
     app = create_app()
     return TestClient(app)
 
+
 @pytest.fixture
 def client_with_api_key(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("J7_API_KEY", "sekret")
@@ -35,27 +36,38 @@ class TestAPI:
         assert len(data["validators"]) == 5
 
     def test_validate_clean(self, client):
-        resp = client.post("/api/v1/validate", json={
-            "text": "We build professional solutions for our valued customers.",
-            "validators": ["forbidden_phrases", "pii"],
-        })
+        resp = client.post(
+            "/api/v1/validate",
+            json={
+                "text": "We build professional solutions for our valued customers.",
+                "validators": ["forbidden_phrases", "pii"],
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["validators_run"] == 2
 
     def test_validate_with_pii(self, client):
-        resp = client.post("/api/v1/validate", json={
-            "text": "Email me at test@example.com right now.",
-            "validators": ["pii"],
-        })
+        resp = client.post(
+            "/api/v1/validate",
+            json={
+                "text": "Email me at test@example.com right now.",
+                "validators": ["pii"],
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["passed"] is False
 
     def test_validate_all(self, client):
-        resp = client.post("/api/v1/validate", json={
-            "text": "Our team is dedicated to quality and innovation in every product we deliver.",
-        })
+        resp = client.post(
+            "/api/v1/validate",
+            json={
+                "text": (
+                    "Our team is dedicated to quality and innovation in every product we deliver."
+                ),
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["validators_run"] == 5
@@ -65,29 +77,38 @@ class TestAPI:
         assert resp.status_code == 422
 
     def test_response_contains_request_id(self, client):
-        resp = client.post("/api/v1/validate", json={
-            "text": "Test content for ID check.",
-            "validators": ["forbidden_phrases"],
-        })
+        resp = client.post(
+            "/api/v1/validate",
+            json={
+                "text": "Test content for ID check.",
+                "validators": ["forbidden_phrases"],
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert "request_id" in data
         assert len(data["request_id"]) > 0
 
     def test_response_contains_timestamp(self, client):
-        resp = client.post("/api/v1/validate", json={
-            "text": "Timestamp check.",
-            "validators": ["forbidden_phrases"],
-        })
+        resp = client.post(
+            "/api/v1/validate",
+            json={
+                "text": "Timestamp check.",
+                "validators": ["forbidden_phrases"],
+            },
+        )
         data = resp.json()
         assert "timestamp" in data
         assert "T" in data["timestamp"]
 
     def test_response_contains_version(self, client):
-        resp = client.post("/api/v1/validate", json={
-            "text": "Version check.",
-            "validators": ["forbidden_phrases"],
-        })
+        resp = client.post(
+            "/api/v1/validate",
+            json={
+                "text": "Version check.",
+                "validators": ["forbidden_phrases"],
+            },
+        )
         data = resp.json()
         assert "version" in data
         assert data["version"] != ""
@@ -101,10 +122,13 @@ class TestAPI:
         assert resp.headers.get("X-Request-ID") == "custom-rid-42"
 
     def test_response_time_header(self, client):
-        resp = client.post("/api/v1/validate", json={
-            "text": "Timing check.",
-            "validators": ["forbidden_phrases"],
-        })
+        resp = client.post(
+            "/api/v1/validate",
+            json={
+                "text": "Timing check.",
+                "validators": ["forbidden_phrases"],
+            },
+        )
         assert "X-Response-Time-Ms" in resp.headers
 
     def test_cors_headers(self, client):
@@ -119,10 +143,58 @@ class TestAPI:
 
     def test_pii_not_leaked_in_response(self, client):
         """SECURITY: Ensure raw PII values are never in the API response."""
-        resp = client.post("/api/v1/validate", json={
-            "text": "Call me at secret@evil.com or 123-45-6789.",
-            "validators": ["pii"],
-        })
+        resp = client.post(
+            "/api/v1/validate",
+            json={
+                "text": "Call me at secret@evil.com or 123-45-6789.",
+                "validators": ["pii"],
+            },
+        )
         body = resp.text
         assert "secret@evil.com" not in body
         assert "123-45-6789" not in body
+
+
+class TestAPIKeyAuth:
+    """Tests for X-API-Key authentication when J7_API_KEY is configured."""
+
+    def test_validate_rejected_without_key(self, client_with_api_key):
+        resp = client_with_api_key.post(
+            "/api/v1/validate",
+            json={"text": "Test content.", "validators": ["forbidden_phrases"]},
+        )
+        assert resp.status_code == 401
+
+    def test_validate_rejected_with_wrong_key(self, client_with_api_key):
+        resp = client_with_api_key.post(
+            "/api/v1/validate",
+            json={"text": "Test content.", "validators": ["forbidden_phrases"]},
+            headers={"X-API-Key": "wrong-key"},
+        )
+        assert resp.status_code == 401
+
+    def test_validate_accepted_with_correct_key(self, client_with_api_key):
+        resp = client_with_api_key.post(
+            "/api/v1/validate",
+            json={"text": "Test content.", "validators": ["forbidden_phrases"]},
+            headers={"X-API-Key": "sekret"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["validators_run"] == 1
+
+    def test_list_validators_rejected_without_key(self, client_with_api_key):
+        resp = client_with_api_key.get("/api/v1/validators")
+        assert resp.status_code == 401
+
+    def test_list_validators_accepted_with_correct_key(self, client_with_api_key):
+        resp = client_with_api_key.get(
+            "/api/v1/validators",
+            headers={"X-API-Key": "sekret"},
+        )
+        assert resp.status_code == 200
+        assert len(resp.json()["validators"]) == 5
+
+    def test_health_does_not_require_key(self, client_with_api_key):
+        resp = client_with_api_key.get("/health")
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "ok"

@@ -53,6 +53,8 @@ class Settings(BaseSettings):
     readability_min_score: float = 30.0
     readability_max_score: float = 80.0
 
+    api_key: str = ""
+
     @classmethod
     def from_yaml(cls, path: Path | str | None = None) -> Settings:
         config_path = Path(path) if path else _DEFAULT_CONFIG_PATH

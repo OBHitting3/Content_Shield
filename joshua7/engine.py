@@ -7,7 +7,7 @@ import uuid
 from typing import Any
 
 from joshua7 import __version__
-from joshua7.config import _SECURITY_SENSITIVE_KEYS, Settings, get_settings
+from joshua7.config import Settings, get_settings
 from joshua7.models import (
     RiskAxis,
     RiskTaxonomy,

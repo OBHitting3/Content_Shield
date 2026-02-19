@@ -164,3 +164,29 @@ class TestRiskTaxonomy:
         ]
         risk = compute_risk_taxonomy(results)
         assert risk.composite_risk_score < 50
+
+    def test_empty_results_yield_green(self):
+        """No results at all should yield GREEN with score 0."""
+        risk = compute_risk_taxonomy([])
+        assert risk.risk_level == "GREEN"
+        assert risk.composite_risk_score == 0.0
+
+    def test_single_critical_axis_escalation(self):
+        """A single CRITICAL-severity finding should escalate by +40."""
+        results = [
+            ValidationResult(
+                validator_name="pii", passed=False,
+                findings=[ValidationFinding(
+                    validator_name="pii",
+                    severity=Severity.CRITICAL,
+                    message="PII found",
+                )],
+            ),
+            ValidationResult(validator_name="forbidden_phrases", passed=True),
+            ValidationResult(validator_name="brand_voice", passed=True, score=80.0),
+            ValidationResult(validator_name="prompt_injection", passed=True, score=100.0),
+            ValidationResult(validator_name="readability", passed=True, score=65.0),
+        ]
+        risk = compute_risk_taxonomy(results)
+        assert risk.composite_risk_score >= 40
+        assert risk.risk_level in ("YELLOW", "ORANGE", "RED")

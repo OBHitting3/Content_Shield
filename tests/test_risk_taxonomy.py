@@ -77,32 +77,44 @@ class TestRiskTaxonomy:
         )
         results = [
             ValidationResult(
-                validator_name="forbidden_phrases", passed=False,
+                validator_name="forbidden_phrases",
+                passed=False,
                 findings=[err, err, err],
             ),
             ValidationResult(
-                validator_name="pii", passed=False,
+                validator_name="pii",
+                passed=False,
                 findings=[crit, crit, crit],
             ),
             ValidationResult(
-                validator_name="brand_voice", passed=False, score=20.0,
-                findings=[ValidationFinding(
-                    validator_name="brand_voice",
-                    severity=Severity.ERROR,
-                    message="Low score",
-                )],
+                validator_name="brand_voice",
+                passed=False,
+                score=20.0,
+                findings=[
+                    ValidationFinding(
+                        validator_name="brand_voice",
+                        severity=Severity.ERROR,
+                        message="Low score",
+                    )
+                ],
             ),
             ValidationResult(
-                validator_name="prompt_injection", passed=False, score=0.0,
+                validator_name="prompt_injection",
+                passed=False,
+                score=0.0,
                 findings=[crit, crit],
             ),
             ValidationResult(
-                validator_name="readability", passed=False, score=10.0,
-                findings=[ValidationFinding(
-                    validator_name="readability",
-                    severity=Severity.WARNING,
-                    message="Too complex",
-                )],
+                validator_name="readability",
+                passed=False,
+                score=10.0,
+                findings=[
+                    ValidationFinding(
+                        validator_name="readability",
+                        severity=Severity.WARNING,
+                        message="Too complex",
+                    )
+                ],
             ),
         ]
         risk = compute_risk_taxonomy(results)
@@ -150,12 +162,15 @@ class TestRiskTaxonomy:
         """Content with only WARNING/ERROR findings should not escalate."""
         results = [
             ValidationResult(
-                validator_name="forbidden_phrases", passed=False,
-                findings=[ValidationFinding(
-                    validator_name="forbidden_phrases",
-                    severity=Severity.ERROR,
-                    message="Forbidden",
-                )],
+                validator_name="forbidden_phrases",
+                passed=False,
+                findings=[
+                    ValidationFinding(
+                        validator_name="forbidden_phrases",
+                        severity=Severity.ERROR,
+                        message="Forbidden",
+                    )
+                ],
             ),
             ValidationResult(validator_name="pii", passed=True),
             ValidationResult(validator_name="brand_voice", passed=True, score=80.0),

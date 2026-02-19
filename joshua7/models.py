@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -75,6 +75,9 @@ class RiskAxis(BaseModel):
     weighted_score: float = Field(description="raw_score * weight contribution.")
 
 
+RiskLevel = Literal["GREEN", "YELLOW", "ORANGE", "RED"]
+
+
 class RiskTaxonomy(BaseModel):
     """RISK_TAXONOMY_v0 composite risk assessment."""
 
@@ -84,7 +87,7 @@ class RiskTaxonomy(BaseModel):
         le=100.0,
         description="Weighted composite risk score (0.0–100.0).",
     )
-    risk_level: str = Field(
+    risk_level: RiskLevel = Field(
         default="GREEN",
         description="GREEN (0-19) | YELLOW (20-49) | ORANGE (50-79) | RED (80-100).",
     )

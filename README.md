@@ -11,9 +11,9 @@ Pre-publication AI content validation engine.
 | # | Validator | Purpose |
 |---|-----------|---------|
 | 1 | Forbidden Phrase Detector | Flag banned words/phrases in content |
-| 2 | PII Validator | Detect emails, phone numbers, SSNs (values are **never** returned — always redacted) |
+| 2 | PII Validator | Detect emails, phone numbers, SSNs, credit cards (values are **never** returned — always redacted) |
 | 3 | Brand Voice Scorer | Score content against a target brand-voice profile |
-| 4 | Prompt Injection Detector | Catch hidden prompt-injection attempts (10 pattern families) |
+| 4 | Prompt Injection Detector | Catch hidden prompt-injection attempts (16 pattern families) |
 | 5 | Readability Scorer | Flesch-Kincaid readability gate with grade-level reporting |
 
 ## Quick Start
@@ -84,6 +84,8 @@ joshua7/
 ├── config.py          # Settings & configuration
 ├── models.py          # Pydantic data models
 ├── engine.py          # Orchestrates all validators
+├── regex_guard.py     # ReDoS-safe regex execution
+├── sanitize.py        # Input sanitization (null bytes, homoglyphs, NFC)
 ├── validators/
 │   ├── base.py        # Abstract base validator
 │   ├── forbidden_phrases.py
@@ -93,17 +95,32 @@ joshua7/
 │   └── readability.py
 ├── api/
 │   ├── main.py        # FastAPI app factory
-│   └── routes.py      # /validate endpoint
+│   ├── routes.py      # /validate endpoint
+│   └── security.py    # Security middleware (headers, rate limit, body limit)
 └── cli/
     └── main.py        # Typer CLI entry point
 ```
 
 ## Security
 
-- PII values are **always redacted** in API responses — raw emails, SSNs, and phone numbers are never echoed back.
-- Input text is capped at a configurable maximum (default 500K chars) to prevent memory exhaustion.
-- CORS middleware is enabled with `allow_credentials=False`.
-- Request IDs are propagated for audit trails.
+Joshua 7 ships with defense-in-depth security hardening:
+
+| Layer | Control | Config |
+|-------|---------|--------|
+| **Auth** | Optional API key via `X-API-Key` header (timing-safe comparison) | `J7_API_KEY` |
+| **Rate Limiting** | Sliding-window per-IP rate limiter | `J7_RATE_LIMIT_RPM`, `J7_RATE_LIMIT_BURST` |
+| **Body Size** | Rejects request bodies exceeding the configured limit | `J7_MAX_REQUEST_BODY_BYTES` (default 4 MB) |
+| **Security Headers** | `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `CSP`, `Referrer-Policy`, `Permissions-Policy`, `Cache-Control: no-store` | Always on |
+| **CORS** | Configurable allowed origins (`allow_credentials=False`) | `J7_CORS_ALLOWED_ORIGINS` |
+| **Trusted Hosts** | Host header validation | `J7_TRUSTED_HOSTS` |
+| **Input Sanitization** | Null bytes, zero-width chars, homoglyphs, NFC normalization | Always on |
+| **ReDoS Guard** | Timeout-protected regex execution | Always on |
+| **PII Redaction** | Raw PII values are **never** echoed — always redacted with fixed placeholders | Always on |
+| **Input Limits** | Text capped at configurable max (default 500K chars) | `J7_MAX_TEXT_LENGTH` |
+| **Request ID** | Validated/sanitized to prevent log injection (alphanumeric + `-_`, max 128 chars) | Via `X-Request-ID` header |
+| **Config Override Guard** | Security-sensitive settings blocked from per-request overrides | Always on |
+| **Exception Handling** | Global handler prevents stack trace leakage | Always on |
+| **Docs Disabled** | `/docs` and `/redoc` disabled in production; enabled when `J7_DEBUG=true` | `J7_DEBUG` |
 
 ## Docker
 

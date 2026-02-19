@@ -30,9 +30,7 @@ class TestPIIValidator:
 
     def test_detects_multiple_pii(self):
         v = PIIValidator()
-        result = v.validate(
-            "Email me at alice@example.com or call 555-123-4567. SSN: 123-45-6789"
-        )
+        result = v.validate("Email me at alice@example.com or call 555-123-4567. SSN: 123-45-6789")
         assert result.passed is False
         pii_types = {f.metadata.get("pii_type") for f in result.findings}
         assert "email" in pii_types
@@ -49,7 +47,6 @@ class TestPIIValidator:
         assert result.findings[0].severity.value == "critical"
 
     def test_pii_values_are_redacted(self):
-        """SECURITY: actual PII must never appear in findings."""
         v = PIIValidator()
         result = v.validate("My email is secret@corp.com and SSN is 123-45-6789.")
         for finding in result.findings:
@@ -75,3 +72,51 @@ class TestPIIValidator:
         v = PIIValidator()
         result = v.validate("Look @ this cool thing!")
         assert result.passed is True
+
+    def test_ssn_rejects_invalid_area_000(self):
+        v = PIIValidator()
+        result = v.validate("SSN is 000-12-3456.")
+        ssn_findings = [f for f in result.findings if f.metadata.get("pii_type") == "ssn"]
+        assert len(ssn_findings) == 0
+
+    def test_ssn_rejects_invalid_area_666(self):
+        v = PIIValidator()
+        result = v.validate("SSN is 666-12-3456.")
+        ssn_findings = [f for f in result.findings if f.metadata.get("pii_type") == "ssn"]
+        assert len(ssn_findings) == 0
+
+    def test_ssn_rejects_invalid_area_900(self):
+        v = PIIValidator()
+        result = v.validate("SSN is 900-12-3456.")
+        ssn_findings = [f for f in result.findings if f.metadata.get("pii_type") == "ssn"]
+        assert len(ssn_findings) == 0
+
+    def test_ssn_rejects_zero_group(self):
+        v = PIIValidator()
+        result = v.validate("SSN is 123-00-4567.")
+        ssn_findings = [f for f in result.findings if f.metadata.get("pii_type") == "ssn"]
+        assert len(ssn_findings) == 0
+
+    def test_ssn_rejects_zero_serial(self):
+        v = PIIValidator()
+        result = v.validate("SSN is 123-45-0000.")
+        ssn_findings = [f for f in result.findings if f.metadata.get("pii_type") == "ssn"]
+        assert len(ssn_findings) == 0
+
+    def test_phone_requires_separator_or_parens(self):
+        v = PIIValidator()
+        result = v.validate("Order number 5551234567 confirmed.")
+        phone_findings = [f for f in result.findings if f.metadata.get("pii_type") == "phone"]
+        assert len(phone_findings) == 0
+
+    def test_phone_with_parens_detected(self):
+        v = PIIValidator()
+        result = v.validate("Call (555) 123-4567 for info.")
+        phone_findings = [f for f in result.findings if f.metadata.get("pii_type") == "phone"]
+        assert len(phone_findings) > 0
+
+    def test_phone_with_dashes_detected(self):
+        v = PIIValidator()
+        result = v.validate("Call 555-123-4567 for info.")
+        phone_findings = [f for f in result.findings if f.metadata.get("pii_type") == "phone"]
+        assert len(phone_findings) > 0

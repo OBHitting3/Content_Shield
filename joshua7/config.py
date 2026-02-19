@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +30,17 @@ _DEFAULT_FORBIDDEN_PHRASES = [
     "at the end of the day",
 ]
 
+_SAFE_OVERRIDE_KEYS: frozenset[str] = frozenset(
+    {
+        "forbidden_phrases",
+        "brand_voice_target_score",
+        "brand_voice_keywords",
+        "brand_voice_tone",
+        "readability_min_score",
+        "readability_max_score",
+    }
+)
+
 
 class Settings(BaseSettings):
     """Global application settings, loadable from env vars or YAML."""
@@ -42,6 +54,7 @@ class Settings(BaseSettings):
     log_level: str = "info"
 
     max_text_length: int = 500_000
+    max_findings_per_validator: int = 50
 
     forbidden_phrases: list[str] = Field(default_factory=lambda: list(_DEFAULT_FORBIDDEN_PHRASES))
     pii_patterns_enabled: list[str] = Field(
@@ -62,6 +75,23 @@ class Settings(BaseSettings):
 
     api_key: str = ""
 
+    rate_limit_rpm: int = Field(
+        default=60,
+        description="Max requests per minute per client IP (0 = disabled).",
+    )
+    rate_limit_burst: int = Field(
+        default=10,
+        description="Burst allowance above the sustained rate limit.",
+    )
+    max_request_body_bytes: int = Field(
+        default=4 * 1024 * 1024,
+        description="Hard cap on request body size in bytes (default 4 MB).",
+    )
+    trusted_hosts: list[str] = Field(
+        default_factory=lambda: ["*"],
+        description="Trusted hostnames for Host header validation. ['*'] = any.",
+    )
+
     @classmethod
     def from_yaml(cls, path: Path | str | None = None) -> Settings:
         config_path = Path(path) if path else _DEFAULT_CONFIG_PATH
@@ -75,11 +105,18 @@ class Settings(BaseSettings):
             overrides = raw
         else:
             logger.debug("Config file not found at %s — using defaults", config_path)
-        return cls(**overrides)
+
+        env_prefix = "J7_"
+        env_keys = {k[len(env_prefix) :].lower() for k in os.environ if k.startswith(env_prefix)}
+        yaml_only = {k: v for k, v in overrides.items() if k not in env_keys}
+        return cls(**yaml_only)
 
 
 def get_settings(config_path: Path | str | None = None) -> Settings:
-    """Factory that returns a Settings instance."""
-    if config_path:
-        return Settings.from_yaml(config_path)
-    return Settings()
+    """Factory that returns a Settings instance.
+
+    Always loads the default YAML config (if it exists) as a baseline, then
+    applies env-var overrides on top.  Pass *config_path* to use a custom YAML
+    file instead of the default.
+    """
+    return Settings.from_yaml(config_path)

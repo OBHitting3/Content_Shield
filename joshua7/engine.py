@@ -9,12 +9,15 @@ from typing import Any
 from joshua7 import __version__
 from joshua7.config import Settings, get_settings
 from joshua7.models import (
+    CompositeRiskResult,
+    RiskAxisScore,
     Severity,
     ValidationFinding,
     ValidationRequest,
     ValidationResponse,
     ValidationResult,
 )
+from joshua7.risk_taxonomy import compute_composite_score
 from joshua7.validators.base import BaseValidator
 from joshua7.validators.brand_voice import BrandVoiceScorer
 from joshua7.validators.forbidden_phrases import ForbiddenPhraseDetector
@@ -106,11 +109,34 @@ class ValidationEngine:
             results.append(result)
 
         all_passed = bool(results) and all(r.passed for r in results)
+
+        risk_result = None
+        if results:
+            crs = compute_composite_score(results)
+            risk_result = CompositeRiskResult(
+                taxonomy_version=crs.taxonomy_version,
+                composite_score=crs.composite_score,
+                risk_level=crs.risk_level,
+                passed=crs.passed,
+                axes=[
+                    RiskAxisScore(
+                        axis_id=a.axis_id,
+                        name=a.name,
+                        weight=a.weight,
+                        score=a.score,
+                        weighted_score=a.weighted_score,
+                        contributing_validators=a.contributing_validators,
+                    )
+                    for a in crs.axes
+                ],
+            )
+
         return ValidationResponse(
             request_id=rid,
             version=__version__,
             passed=all_passed,
             results=results,
+            risk_score=risk_result,
             text_length=len(request.text),
             validators_run=len(results),
         )

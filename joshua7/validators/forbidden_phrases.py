@@ -8,6 +8,7 @@ from typing import Any
 
 from joshua7.config import _DEFAULT_FORBIDDEN_PHRASES
 from joshua7.models import Severity, ValidationFinding, ValidationResult
+from joshua7.regex_guard import safe_finditer
 from joshua7.validators.base import BaseValidator
 
 logger = logging.getLogger(__name__)
@@ -28,7 +29,7 @@ class ForbiddenPhraseDetector(BaseValidator):
         findings: list[ValidationFinding] = []
 
         for pattern, phrase in zip(self._patterns, self._phrases):
-            for match in pattern.finditer(text):
+            for match in safe_finditer(pattern, text):
                 findings.append(
                     ValidationFinding(
                         validator_name=self.name,

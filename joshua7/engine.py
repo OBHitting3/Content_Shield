@@ -17,6 +17,7 @@ from joshua7.models import (
     ValidationResponse,
     ValidationResult,
 )
+from joshua7.sanitize import sanitize_input
 from joshua7.validators.base import BaseValidator
 from joshua7.validators.brand_voice import BrandVoiceScorer
 from joshua7.validators.forbidden_phrases import ForbiddenPhraseDetector
@@ -161,6 +162,32 @@ def compute_risk_taxonomy(results: list[ValidationResult]) -> RiskTaxonomy:
     )
 
 
+_SECURITY_CRITICAL_VALIDATORS = frozenset({"pii", "prompt_injection"})
+
+_BLOCKED_OVERRIDE_KEYS: dict[str, frozenset[str]] = {
+    "pii": frozenset({"pii_patterns_enabled"}),
+    "prompt_injection": frozenset(),
+}
+
+
+def _filter_overrides(
+    validator_name: str, overrides: dict[str, Any]
+) -> dict[str, Any]:
+    """Strip security-sensitive keys from per-request config overrides."""
+    blocked = _BLOCKED_OVERRIDE_KEYS.get(validator_name, frozenset())
+    if not blocked:
+        return overrides
+    filtered = {k: v for k, v in overrides.items() if k not in blocked}
+    removed = blocked & overrides.keys()
+    if removed:
+        logger.warning(
+            "Blocked override keys %s for security-critical validator '%s'",
+            removed,
+            validator_name,
+        )
+    return filtered
+
+
 class ValidationEngine:
     """Runs a configurable set of validators against content."""
 
@@ -188,8 +215,9 @@ class ValidationEngine:
     ) -> ValidationResponse:
         """Execute requested validators and return aggregated response."""
         rid = request_id or uuid.uuid4().hex
+        clean_text = sanitize_input(request.text)
         max_len = self._settings.max_text_length
-        if len(request.text) > max_len:
+        if len(clean_text) > max_len:
             return ValidationResponse(
                 request_id=rid,
                 version=__version__,
@@ -203,7 +231,7 @@ class ValidationEngine:
                                 validator_name="_engine",
                                 severity=Severity.ERROR,
                                 message=(
-                                    f"Text length {len(request.text):,} exceeds "
+                                    f"Text length {len(clean_text):,} exceeds "
                                     f"configured maximum of {max_len:,} characters."
                                 ),
                             ),
@@ -215,7 +243,7 @@ class ValidationEngine:
                     risk_level="RED",
                     axes=[],
                 ),
-                text_length=len(request.text),
+                text_length=len(clean_text),
                 validators_run=0,
             )
 
@@ -225,10 +253,11 @@ class ValidationEngine:
         for name in selected:
             validator = self._validators[name]
             if name in request.config_overrides:
-                merged = {**self._settings_to_config(), **request.config_overrides[name]}
+                safe_overrides = _filter_overrides(name, request.config_overrides[name])
+                merged = {**self._settings_to_config(), **safe_overrides}
                 validator = _REGISTRY[name](config=merged)
             try:
-                result = validator.validate(request.text)
+                result = validator.validate(clean_text)
             except Exception:
                 logger.exception("Validator '%s' raised an exception", name)
                 result = ValidationResult(
@@ -247,7 +276,7 @@ class ValidationEngine:
             passed=all_passed,
             results=results,
             risk=risk,
-            text_length=len(request.text),
+            text_length=len(clean_text),
             validators_run=len(results),
         )
 

@@ -7,6 +7,7 @@ import re
 from typing import Any
 
 from joshua7.models import Severity, ValidationFinding, ValidationResult
+from joshua7.regex_guard import safe_finditer
 from joshua7.validators.base import BaseValidator
 
 logger = logging.getLogger(__name__)
@@ -25,12 +26,23 @@ _PII_PATTERNS: dict[str, re.Pattern[str]] = {
     "ssn": re.compile(
         r"(?<!\d)\d{3}[\s\-]\d{2}[\s\-]\d{4}(?!\d)",
     ),
+    "credit_card": re.compile(
+        r"(?<!\d)"
+        r"(?:"
+        r"4\d{3}[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}"  # Visa
+        r"|5[1-5]\d{2}[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}"  # MasterCard
+        r"|3[47]\d{2}[\s\-]?\d{6}[\s\-]?\d{5}"  # Amex
+        r"|6(?:011|5\d{2})[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}"  # Discover
+        r")"
+        r"(?!\d)",
+    ),
 }
 
 _REDACT_MAP: dict[str, str] = {
     "email": "***@***.***",
     "phone": "***-***-****",
     "ssn": "***-**-****",
+    "credit_card": "****-****-****-****",
 }
 
 
@@ -55,7 +67,7 @@ class PIIValidator(BaseValidator):
         findings: list[ValidationFinding] = []
 
         for pii_type, pattern in self._active.items():
-            for match in pattern.finditer(text):
+            for match in safe_finditer(pattern, text):
                 redacted = _redact(pii_type)
                 findings.append(
                     ValidationFinding(

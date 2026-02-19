@@ -6,6 +6,7 @@ import logging
 import re
 
 from joshua7.models import Severity, ValidationFinding, ValidationResult
+from joshua7.regex_guard import safe_finditer
 from joshua7.validators.base import BaseValidator
 
 logger = logging.getLogger(__name__)
@@ -51,7 +52,40 @@ _INJECTION_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
         r"(?:act|behave|respond)\s+as\s+(?:if\s+)?(?:you\s+(?:are|were)\s+)?(?:a\s+)?(?:different|new|another)",
         re.IGNORECASE,
     )),
+    ("template_injection", re.compile(
+        r"\{\{.*?\}\}|\$\{.*?\}|<%.*?%>",
+        re.IGNORECASE,
+    )),
+    ("markdown_role_block", re.compile(
+        r"^#{1,3}\s*(?:system|user|assistant)\s*(?:prompt|message|role)?",
+        re.IGNORECASE | re.MULTILINE,
+    )),
+    ("xml_tag_injection", re.compile(
+        r"<\s*/?(?:system|instruction|prompt|rules?|context)\s*>",
+        re.IGNORECASE,
+    )),
+    ("continuation_attack", re.compile(
+        r"(?:continue|resume|proceed)\s+(?:from|with)\s+(?:the\s+)?(?:real|actual|original|true)\s+(?:instructions?|prompt|task)",
+        re.IGNORECASE,
+    )),
+    ("payload_separator", re.compile(
+        r"-{5,}|={5,}|_{5,}|\*{5,}",
+    )),
+    ("cognitive_hacking", re.compile(
+        r"(?:pretend|imagine|suppose|hypothetically)\s+(?:that\s+)?(?:you|there)\s+(?:are|is|were|have)\s+no\s+(?:rules?|restrictions?|limits?|guidelines?|filters?)",
+        re.IGNORECASE,
+    )),
 ]
+
+
+_MAX_MATCHED_DISPLAY = 60
+
+
+def _truncate_match(text: str) -> str:
+    """Truncate matched text to avoid leaking long payloads in responses."""
+    if len(text) <= _MAX_MATCHED_DISPLAY:
+        return text
+    return text[:_MAX_MATCHED_DISPLAY] + "..."
 
 
 class PromptInjectionDetector(BaseValidator):
@@ -64,7 +98,7 @@ class PromptInjectionDetector(BaseValidator):
         triggered = 0
 
         for pattern_name, pattern in _INJECTION_PATTERNS:
-            for match in pattern.finditer(text):
+            for match in safe_finditer(pattern, text):
                 triggered += 1
                 findings.append(
                     ValidationFinding(
@@ -72,7 +106,10 @@ class PromptInjectionDetector(BaseValidator):
                         severity=Severity.CRITICAL,
                         message=f"Prompt injection pattern: {pattern_name}",
                         span=(match.start(), match.end()),
-                        metadata={"pattern": pattern_name, "matched": match.group()},
+                        metadata={
+                            "pattern": pattern_name,
+                            "matched": _truncate_match(match.group()),
+                        },
                     )
                 )
 

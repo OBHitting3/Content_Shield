@@ -25,6 +25,7 @@ pii_patterns_enabled:
   - email
   - phone
   - ssn
+  - credit_card
 
 brand_voice_target_score: 60.0
 brand_voice_keywords: []

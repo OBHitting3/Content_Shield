@@ -30,7 +30,7 @@ def create_app() -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=settings.cors_allowed_origins,
         allow_credentials=False,
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["*"],
@@ -50,6 +50,10 @@ def create_app() -> FastAPI:
         elapsed_ms = round((time.monotonic() - start) * 1000, 2)
         response.headers["X-Request-ID"] = request_id
         response.headers["X-Response-Time-Ms"] = str(elapsed_ms)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Referrer-Policy"] = "no-referrer"
         return response
 
     @app.get("/health")

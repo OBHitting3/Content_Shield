@@ -44,7 +44,9 @@ class Settings(BaseSettings):
     max_text_length: int = 500_000
 
     forbidden_phrases: list[str] = Field(default_factory=lambda: list(_DEFAULT_FORBIDDEN_PHRASES))
-    pii_patterns_enabled: list[str] = Field(default_factory=lambda: ["email", "phone", "ssn"])
+    pii_patterns_enabled: list[str] = Field(
+        default_factory=lambda: ["email", "phone", "ssn", "credit_card"]
+    )
 
     brand_voice_target_score: float = 60.0
     brand_voice_keywords: list[str] = Field(default_factory=list)
@@ -52,6 +54,11 @@ class Settings(BaseSettings):
 
     readability_min_score: float = 30.0
     readability_max_score: float = 80.0
+
+    cors_allowed_origins: list[str] = Field(
+        default_factory=lambda: ["*"],
+        description="Allowed CORS origins. Set to specific domains in production.",
+    )
 
     api_key: str = ""
 

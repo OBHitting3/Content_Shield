@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 import uuid
 
@@ -16,6 +17,17 @@ from joshua7.engine import ValidationEngine
 
 logger = logging.getLogger(__name__)
 
+_SAFE_REQUEST_ID = re.compile(r"^[\w\-]{1,128}$")
+
+_MAX_REQUEST_ID_LEN = 128
+
+
+def _sanitize_request_id(raw: str | None) -> str:
+    """Return the header value if it's safe, otherwise generate a fresh ID."""
+    if raw and len(raw) <= _MAX_REQUEST_ID_LEN and _SAFE_REQUEST_ID.match(raw):
+        return raw
+    return uuid.uuid4().hex
+
 
 def create_app() -> FastAPI:
     settings = get_settings()
@@ -28,12 +40,13 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
     )
 
+    allowed_origins = settings.cors_allowed_origins
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=allowed_origins,
         allow_credentials=False,
         allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["*"],
+        allow_headers=["Content-Type", "X-API-Key", "X-Request-ID"],
     )
 
     app.state.settings = settings
@@ -43,7 +56,7 @@ def create_app() -> FastAPI:
 
     @app.middleware("http")
     async def add_request_context(request: Request, call_next) -> Response:  # noqa: ANN001
-        request_id = request.headers.get("X-Request-ID", uuid.uuid4().hex)
+        request_id = _sanitize_request_id(request.headers.get("X-Request-ID"))
         request.state.request_id = request_id
         start = time.monotonic()
         response: Response = await call_next(request)

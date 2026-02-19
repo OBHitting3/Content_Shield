@@ -7,7 +7,7 @@ import uuid
 from typing import Any
 
 from joshua7 import __version__
-from joshua7.config import Settings, get_settings
+from joshua7.config import _SAFE_OVERRIDE_KEYS, Settings, get_settings
 from joshua7.models import (
     RiskAxis,
     RiskTaxonomy,
@@ -45,16 +45,31 @@ _SEVERITY_POINTS = {
 }
 
 _RISK_AXES: list[dict[str, Any]] = [
-    {"axis": "A", "label": "Synthetic Artifacts", "weight": 0.30,
-     "validators": ["forbidden_phrases", "readability"]},
-    {"axis": "B", "label": "Hallucination / Factual Integrity", "weight": 0.25,
-     "validators": ["readability"]},
-    {"axis": "C", "label": "Brand Safety / GARM", "weight": 0.20,
-     "validators": ["brand_voice"]},
-    {"axis": "D", "label": "Regulatory Compliance / PII+Disclosure", "weight": 0.15,
-     "validators": ["pii"]},
-    {"axis": "E", "label": "Adversarial Robustness / Injection", "weight": 0.10,
-     "validators": ["prompt_injection"]},
+    {
+        "axis": "A",
+        "label": "Synthetic Artifacts",
+        "weight": 0.30,
+        "validators": ["forbidden_phrases", "readability"],
+    },
+    {
+        "axis": "B",
+        "label": "Hallucination / Factual Integrity",
+        "weight": 0.25,
+        "validators": ["readability"],
+    },
+    {"axis": "C", "label": "Brand Safety / GARM", "weight": 0.20, "validators": ["brand_voice"]},
+    {
+        "axis": "D",
+        "label": "Regulatory Compliance / PII+Disclosure",
+        "weight": 0.15,
+        "validators": ["pii"],
+    },
+    {
+        "axis": "E",
+        "label": "Adversarial Robustness / Injection",
+        "weight": 0.10,
+        "validators": ["prompt_injection"],
+    },
 ]
 
 
@@ -90,9 +105,7 @@ def _axis_score_from_results(
             total_points += inverted
             continue
 
-        finding_points = sum(
-            _SEVERITY_POINTS.get(f.severity, 0) for f in result.findings
-        )
+        finding_points = sum(_SEVERITY_POINTS.get(f.severity, 0) for f in result.findings)
         total_points += min(finding_points, 100.0)
 
     if contributor_count == 0:
@@ -143,13 +156,15 @@ def compute_risk_taxonomy(results: list[ValidationResult]) -> RiskTaxonomy:
         raw = _axis_score_from_results(axis_def["validators"], results_map)
         weighted = raw * axis_def["weight"]
         weighted_sum += weighted
-        axes.append(RiskAxis(
-            axis=axis_def["axis"],
-            label=axis_def["label"],
-            weight=axis_def["weight"],
-            raw_score=round(raw, 1),
-            weighted_score=round(weighted, 2),
-        ))
+        axes.append(
+            RiskAxis(
+                axis=axis_def["axis"],
+                label=axis_def["label"],
+                weight=axis_def["weight"],
+                raw_score=round(raw, 1),
+                weighted_score=round(weighted, 2),
+            )
+        )
 
     escalation = _critical_escalation(results)
     composite = round(min(weighted_sum + escalation, 100.0), 1)
@@ -174,8 +189,18 @@ class ValidationEngine:
         for name, cls in _REGISTRY.items():
             self._validators[name] = cls(config=config)
 
+    _CONFIG_EXCLUDE_FIELDS: frozenset[str] = frozenset(
+        {
+            "api_key",
+            "host",
+            "port",
+            "debug",
+            "log_level",
+        }
+    )
+
     def _settings_to_config(self) -> dict[str, Any]:
-        return self._settings.model_dump()
+        return self._settings.model_dump(exclude=self._CONFIG_EXCLUDE_FIELDS)
 
     @property
     def available_validators(self) -> list[str]:
@@ -221,12 +246,19 @@ class ValidationEngine:
 
         selected = self._resolve_validators(request.validators)
         results: list[ValidationResult] = []
+        max_findings = self._settings.max_findings_per_validator
 
         for name in selected:
             validator = self._validators[name]
             if name in request.config_overrides:
-                merged = {**self._settings_to_config(), **request.config_overrides[name]}
-                validator = _REGISTRY[name](config=merged)
+                safe_overrides = {
+                    k: v
+                    for k, v in request.config_overrides[name].items()
+                    if k in _SAFE_OVERRIDE_KEYS
+                }
+                if safe_overrides:
+                    merged = {**self._settings_to_config(), **safe_overrides}
+                    validator = _REGISTRY[name](config=merged)
             try:
                 result = validator.validate(request.text)
             except Exception:
@@ -234,7 +266,20 @@ class ValidationEngine:
                 result = ValidationResult(
                     validator_name=name,
                     passed=False,
-                    findings=[],
+                    findings=[
+                        ValidationFinding(
+                            validator_name=name,
+                            severity=Severity.ERROR,
+                            message=f"Validator '{name}' encountered an internal error.",
+                        ),
+                    ],
+                )
+            if len(result.findings) > max_findings:
+                result = ValidationResult(
+                    validator_name=result.validator_name,
+                    passed=result.passed,
+                    score=result.score,
+                    findings=result.findings[:max_findings],
                 )
             results.append(result)
 

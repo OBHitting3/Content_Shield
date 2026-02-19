@@ -125,14 +125,60 @@ class TestValidationEngine:
         response = engine.validate_text("A" * 100)
         assert response.passed is False
         assert response.validators_run == 0
-        assert any(
-            "exceeds" in f.message
-            for r in response.results
-            for f in r.findings
-        )
+        assert any("exceeds" in f.message for r in response.results for f in r.findings)
 
     def test_max_text_length_allows_under_limit(self):
         settings = Settings(max_text_length=500)
         engine = ValidationEngine(settings=settings)
         response = engine.validate_text("Short text.")
         assert response.validators_run == 5
+
+    def test_exception_emits_error_finding(self):
+        """When a validator raises, the engine should emit an error finding."""
+        engine = self._engine()
+        with patch.object(
+            engine._validators["readability"],
+            "validate",
+            side_effect=RuntimeError("test error"),
+        ):
+            response = engine.validate_text("Normal content for testing.")
+        readability = next(r for r in response.results if r.validator_name == "readability")
+        assert readability.passed is False
+        assert len(readability.findings) == 1
+        assert "internal error" in readability.findings[0].message.lower()
+
+    def test_findings_capped(self):
+        """Findings count per validator must not exceed max_findings_per_validator."""
+        settings = Settings(max_findings_per_validator=2)
+        engine = ValidationEngine(settings=settings)
+        request = ValidationRequest(
+            text="bad bad bad bad bad",
+            validators=["forbidden_phrases"],
+            config_overrides={
+                "forbidden_phrases": {"forbidden_phrases": ["bad"]},
+            },
+        )
+        response = engine.run(request)
+        fp = next(r for r in response.results if r.validator_name == "forbidden_phrases")
+        assert len(fp.findings) <= 2
+
+    def test_unsafe_config_override_blocked(self):
+        """Security-sensitive config keys like pii_patterns_enabled must be ignored."""
+        engine = self._engine()
+        request = ValidationRequest(
+            text="Contact me at user@example.com",
+            validators=["pii"],
+            config_overrides={
+                "pii": {"pii_patterns_enabled": []},
+            },
+        )
+        response = engine.run(request)
+        pii = next(r for r in response.results if r.validator_name == "pii")
+        assert pii.passed is False
+
+    def test_api_key_not_in_validator_config(self):
+        """The API key must never be passed to validators."""
+        settings = Settings(api_key="supersecret")
+        engine = ValidationEngine(settings=settings)
+        config = engine._settings_to_config()
+        assert "api_key" not in config

@@ -30,6 +30,18 @@ _DEFAULT_FORBIDDEN_PHRASES = [
 ]
 
 
+_SAFE_OVERRIDE_KEYS: frozenset[str] = frozenset(
+    {
+        "forbidden_phrases",
+        "brand_voice_target_score",
+        "brand_voice_keywords",
+        "brand_voice_tone",
+        "readability_min_score",
+        "readability_max_score",
+    }
+)
+
+
 class Settings(BaseSettings):
     """Global application settings, loadable from env vars or YAML."""
 
@@ -37,11 +49,12 @@ class Settings(BaseSettings):
 
     app_name: str = "Joshua 7"
     debug: bool = False
-    host: str = "0.0.0.0"
+    host: str = "127.0.0.1"
     port: int = 8000
     log_level: str = "info"
 
     max_text_length: int = 500_000
+    max_findings_per_validator: int = 50
 
     forbidden_phrases: list[str] = Field(default_factory=lambda: list(_DEFAULT_FORBIDDEN_PHRASES))
     pii_patterns_enabled: list[str] = Field(default_factory=lambda: ["email", "phone", "ssn"])
@@ -54,6 +67,11 @@ class Settings(BaseSettings):
     readability_max_score: float = 80.0
 
     api_key: str = ""
+
+    cors_allowed_origins: list[str] = Field(
+        default_factory=lambda: ["*"],
+        description="Allowed CORS origins. Set to specific domains in production.",
+    )
 
     @classmethod
     def from_yaml(cls, path: Path | str | None = None) -> Settings:
@@ -72,7 +90,10 @@ class Settings(BaseSettings):
 
 
 def get_settings(config_path: Path | str | None = None) -> Settings:
-    """Factory that returns a Settings instance."""
-    if config_path:
-        return Settings.from_yaml(config_path)
-    return Settings()
+    """Factory that returns a Settings instance.
+
+    Always loads the default YAML config (if it exists) as a baseline, then
+    applies env-var overrides on top.  Pass *config_path* to use a custom YAML
+    file instead of the default.
+    """
+    return Settings.from_yaml(config_path)

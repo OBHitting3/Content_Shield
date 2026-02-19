@@ -30,6 +30,9 @@ jobs:
       - name: Lint
         run: ruff check joshua7/ tests/
 
+      - name: Format check
+        run: ruff format --check joshua7/ tests/
+
       - name: Test
         run: pytest --tb=short -v
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hmac
+
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
 from joshua7.config import Settings, get_settings
@@ -18,8 +20,11 @@ def verify_api_key(
     """Optional API key auth for /api/v1 endpoints.
 
     If `J7_API_KEY` is set, requests must include a matching `X-API-Key` header.
+    Uses constant-time comparison to prevent timing attacks.
     """
-    if settings.api_key and x_api_key != settings.api_key:
+    if not settings.api_key:
+        return
+    if x_api_key is None or not hmac.compare_digest(x_api_key, settings.api_key):
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 

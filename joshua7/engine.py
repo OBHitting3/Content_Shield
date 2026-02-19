@@ -9,12 +9,15 @@ from typing import Any
 from joshua7 import __version__
 from joshua7.config import Settings, get_settings
 from joshua7.models import (
+    RiskAxisResult,
+    RiskTaxonomyResult,
     Severity,
     ValidationFinding,
     ValidationRequest,
     ValidationResponse,
     ValidationResult,
 )
+from joshua7.risk_taxonomy import compute_risk
 from joshua7.validators.base import BaseValidator
 from joshua7.validators.brand_voice import BrandVoiceScorer
 from joshua7.validators.forbidden_phrases import ForbiddenPhraseDetector
@@ -62,7 +65,7 @@ class ValidationEngine:
         rid = request_id or uuid.uuid4().hex
         max_len = self._settings.max_text_length
         if len(request.text) > max_len:
-            return ValidationResponse(
+            early_resp = ValidationResponse(
                 request_id=rid,
                 version=__version__,
                 passed=False,
@@ -85,6 +88,14 @@ class ValidationEngine:
                 text_length=len(request.text),
                 validators_run=0,
             )
+            report = compute_risk(early_resp)
+            early_resp.risk = RiskTaxonomyResult(
+                taxonomy_version=report.taxonomy_version,
+                composite_score=round(report.composite_score, 1),
+                composite_passed=report.composite_passed,
+                axes=[RiskAxisResult(**a.to_dict()) for a in report.axes],
+            )
+            return early_resp
 
         selected = self._resolve_validators(request.validators)
         results: list[ValidationResult] = []
@@ -118,7 +129,7 @@ class ValidationEngine:
                 )
 
         all_passed = bool(results) and all(r.passed for r in results)
-        return ValidationResponse(
+        response = ValidationResponse(
             request_id=rid,
             version=__version__,
             passed=all_passed,
@@ -126,6 +137,19 @@ class ValidationEngine:
             text_length=len(request.text),
             validators_run=len(results),
         )
+
+        report = compute_risk(response)
+        response.risk = RiskTaxonomyResult(
+            taxonomy_version=report.taxonomy_version,
+            composite_score=round(report.composite_score, 1),
+            composite_passed=report.composite_passed,
+            axes=[
+                RiskAxisResult(**a.to_dict())
+                for a in report.axes
+            ],
+        )
+
+        return response
 
     def validate_text(
         self,

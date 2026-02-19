@@ -65,6 +65,27 @@ class ValidationRequest(BaseModel):
     )
 
 
+class RiskAxisResult(BaseModel):
+    """Per-axis score from the RISK_TAXONOMY_v0 model."""
+
+    code: str = Field(description="Axis code (A–E).")
+    name: str = Field(description="Human-readable axis name.")
+    weight: float = Field(description="Weight in the composite score (0–1).")
+    score: float = Field(description="Per-axis safety score (0–100, 100 = safest).")
+    passed: bool = Field(description="True if the underlying validator passed.")
+    finding_count: int = Field(default=0)
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
+class RiskTaxonomyResult(BaseModel):
+    """RISK_TAXONOMY_v0 composite scoring envelope."""
+
+    taxonomy_version: str = Field(default="v0")
+    composite_score: float = Field(description="Weighted composite safety score (0–100).")
+    composite_passed: bool = Field(description="True only if every axis passed.")
+    axes: list[RiskAxisResult] = Field(default_factory=list)
+
+
 class ValidationResponse(BaseModel):
     """Outbound response from the validation engine."""
 
@@ -81,3 +102,7 @@ class ValidationResponse(BaseModel):
     results: list[ValidationResult] = Field(default_factory=list)
     text_length: int = 0
     validators_run: int = 0
+    risk: RiskTaxonomyResult | None = Field(
+        default=None,
+        description="RISK_TAXONOMY_v0 composite risk scoring breakdown.",
+    )

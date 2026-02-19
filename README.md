@@ -93,17 +93,31 @@ joshua7/
 │   └── readability.py
 ├── api/
 │   ├── main.py        # FastAPI app factory
-│   └── routes.py      # /validate endpoint
+│   ├── routes.py      # /validate endpoint
+│   └── security.py    # Security middleware (headers, rate limit, body limit)
 └── cli/
     └── main.py        # Typer CLI entry point
 ```
 
 ## Security
 
-- PII values are **always redacted** in API responses — raw emails, SSNs, and phone numbers are never echoed back.
-- Input text is capped at a configurable maximum (default 500K chars) to prevent memory exhaustion.
-- CORS middleware is enabled with `allow_credentials=False`.
-- Request IDs are propagated for audit trails.
+Joshua 7 ships with defense-in-depth security hardening:
+
+| Layer | Control | Config |
+|-------|---------|--------|
+| **Auth** | Optional API key via `X-API-Key` header (timing-safe comparison) | `J7_API_KEY` |
+| **Rate Limiting** | Sliding-window per-IP rate limiter | `J7_RATE_LIMIT_REQUESTS`, `J7_RATE_LIMIT_WINDOW_SECONDS` |
+| **Body Size** | Rejects request bodies exceeding the configured limit | `J7_MAX_REQUEST_BODY_BYTES` (default 2 MiB) |
+| **Security Headers** | `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `CSP`, `Referrer-Policy`, `Permissions-Policy`, `Cache-Control: no-store` | Always on |
+| **CORS** | Configurable allowed origins (`allow_credentials=False`) | `J7_CORS_ALLOWED_ORIGINS` |
+| **Trusted Hosts** | Host header validation | `J7_ALLOWED_HOSTS` |
+| **PII Redaction** | Raw PII values are **never** echoed — always redacted with fixed placeholders | Always on |
+| **Input Limits** | Text capped at configurable max (default 500K chars) | `J7_MAX_TEXT_LENGTH` |
+| **Request ID** | Validated/sanitized to prevent log injection (alphanumeric + `-_.:`, max 128 chars) | Via `X-Request-ID` header |
+| **Config Override Guard** | Security-sensitive settings (`pii_patterns_enabled`, `max_text_length`, `api_key`) blocked from per-request overrides | Always on |
+| **Exception Handling** | Global handler prevents stack trace leakage — returns generic error with request ID | Always on |
+| **Docs Disabled** | `/docs` and `/redoc` disabled in production; enabled when `J7_DEBUG=true` | `J7_DEBUG` |
+| **Audit Logging** | Dedicated `joshua7.audit` logger for auth failures, PII detections, injection detections, rate limiting | Always on |
 
 ## Docker
 

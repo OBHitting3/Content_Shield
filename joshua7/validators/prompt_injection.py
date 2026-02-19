@@ -72,7 +72,7 @@ class PromptInjectionDetector(BaseValidator):
                         severity=Severity.CRITICAL,
                         message=f"Prompt injection pattern: {pattern_name}",
                         span=(match.start(), match.end()),
-                        metadata={"pattern": pattern_name, "matched": match.group()},
+                        metadata={"pattern": pattern_name},
                     )
                 )
 

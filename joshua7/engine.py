@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import re
+import unicodedata
 import uuid
 from typing import Any
 
@@ -33,6 +35,57 @@ _REGISTRY: dict[str, type[BaseValidator]] = {
     "prompt_injection": PromptInjectionDetector,
     "readability": ReadabilityScorer,
 }
+
+_LOCKED_OVERRIDE_KEYS: set[str] = {
+    "pii_patterns_enabled",
+    "forbidden_phrases",
+    "max_text_length",
+}
+
+# ---------------------------------------------------------------------------
+# Input normalisation — defeat zero-width char and homoglyph evasion
+# ---------------------------------------------------------------------------
+_ZERO_WIDTH_RE = re.compile(
+    "[\u200b\u200c\u200d\u200e\u200f\u2060\u2061\u2062\u2063\u2064\ufeff]"
+)
+
+_HOMOGLYPH_MAP: dict[str, str] = {
+    "\u0410": "A", "\u0412": "B", "\u0421": "C", "\u0415": "E",
+    "\u041d": "H", "\u041a": "K", "\u041c": "M", "\u041e": "O",
+    "\u0420": "P", "\u0422": "T", "\u0425": "X",
+    "\u0430": "a", "\u0435": "e", "\u043e": "o", "\u0440": "p",
+    "\u0441": "c", "\u0443": "y", "\u0445": "x",
+    "\uff21": "A", "\uff22": "B", "\uff23": "C", "\uff24": "D",
+    "\uff25": "E", "\uff26": "F", "\uff27": "G", "\uff28": "H",
+    "\uff29": "I", "\uff2a": "J", "\uff2b": "K", "\uff2c": "L",
+    "\uff2d": "M", "\uff2e": "N", "\uff2f": "O", "\uff30": "P",
+    "\uff31": "Q", "\uff32": "R", "\uff33": "S", "\uff34": "T",
+    "\uff35": "U", "\uff36": "V", "\uff37": "W", "\uff38": "X",
+    "\uff39": "Y", "\uff3a": "Z",
+    "\uff41": "a", "\uff42": "b", "\uff43": "c", "\uff44": "d",
+    "\uff45": "e", "\uff46": "f", "\uff47": "g", "\uff48": "h",
+    "\uff49": "i", "\uff4a": "j", "\uff4b": "k", "\uff4c": "l",
+    "\uff4d": "m", "\uff4e": "n", "\uff4f": "o", "\uff50": "p",
+    "\uff51": "q", "\uff52": "r", "\uff53": "s", "\uff54": "t",
+    "\uff55": "u", "\uff56": "v", "\uff57": "w", "\uff58": "x",
+    "\uff59": "y", "\uff5a": "z",
+}
+
+
+def normalize_text(text: str) -> str:
+    """Apply Unicode NFKC normalisation, strip zero-width characters, and
+    replace common Cyrillic / fullwidth homoglyphs with their ASCII equivalents.
+
+    The original text is preserved for span-offset reporting; this normalized
+    copy is used only for pattern matching inside validators.
+    """
+    text = unicodedata.normalize("NFKC", text)
+    text = _ZERO_WIDTH_RE.sub("", text)
+    for glyph, replacement in _HOMOGLYPH_MAP.items():
+        if glyph in text:
+            text = text.replace(glyph, replacement)
+    return text
+
 
 # ---------------------------------------------------------------------------
 # RISK_TAXONOMY_v0 — weighted composite scoring
@@ -219,16 +272,18 @@ class ValidationEngine:
                 validators_run=0,
             )
 
+        normalized = normalize_text(request.text)
+        overrides = self._sanitize_overrides(request.config_overrides)
         selected = self._resolve_validators(request.validators)
         results: list[ValidationResult] = []
 
         for name in selected:
             validator = self._validators[name]
-            if name in request.config_overrides:
-                merged = {**self._settings_to_config(), **request.config_overrides[name]}
+            if name in overrides:
+                merged = {**self._settings_to_config(), **overrides[name]}
                 validator = _REGISTRY[name](config=merged)
             try:
-                result = validator.validate(request.text)
+                result = validator.validate(normalized)
             except Exception:
                 logger.exception("Validator '%s' raised an exception", name)
                 result = ValidationResult(
@@ -263,6 +318,50 @@ class ValidationEngine:
             validators=validators or ["all"],
         )
         return self.run(request, request_id=request_id)
+
+    @staticmethod
+    def _sanitize_overrides(
+        raw: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Strip security-critical keys from per-request config overrides.
+
+        Prevents callers from disabling PII detection, clearing the
+        forbidden-phrases list, or raising the max text length at runtime.
+        """
+        max_override_size = 16_384
+
+        serialized_len = sum(
+            len(str(k)) + len(str(v)) for k, v in raw.items()
+        )
+        if serialized_len > max_override_size:
+            logger.warning(
+                "config_overrides payload too large (%d chars) — ignoring",
+                serialized_len,
+            )
+            return {}
+
+        cleaned: dict[str, Any] = {}
+        for validator_name, overrides in raw.items():
+            if not isinstance(overrides, dict):
+                logger.warning(
+                    "config_overrides[%s] is not a dict — ignoring",
+                    validator_name,
+                )
+                continue
+            filtered = {
+                k: v for k, v in overrides.items()
+                if k not in _LOCKED_OVERRIDE_KEYS
+            }
+            stripped = set(overrides.keys()) - set(filtered.keys())
+            if stripped:
+                logger.warning(
+                    "Blocked security-locked override keys for '%s': %s",
+                    validator_name,
+                    stripped,
+                )
+            if filtered:
+                cleaned[validator_name] = filtered
+        return cleaned
 
     def _resolve_validators(self, names: list[str]) -> list[str]:
         if "all" in names:

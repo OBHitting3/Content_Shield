@@ -60,6 +60,20 @@ class TestValidationEngine:
     def test_config_overrides(self):
         engine = self._engine()
         request = ValidationRequest(
+            text="Our team delivers results every day for you.",
+            validators=["brand_voice"],
+            config_overrides={
+                "brand_voice": {"brand_voice_target_score": 99.0},
+            },
+        )
+        response = engine.run(request)
+        bv_result = next(r for r in response.results if r.validator_name == "brand_voice")
+        assert bv_result.passed is False
+
+    def test_config_overrides_locked_keys_blocked(self):
+        """Security-critical config keys must not be overridable at runtime."""
+        engine = self._engine()
+        request = ValidationRequest(
             text="This has a banana in it.",
             validators=["forbidden_phrases"],
             config_overrides={
@@ -68,7 +82,7 @@ class TestValidationEngine:
         )
         response = engine.run(request)
         fp_result = next(r for r in response.results if r.validator_name == "forbidden_phrases")
-        assert fp_result.passed is False
+        assert fp_result.passed is True  # override was blocked, default list used
 
     def test_response_model_fields(self):
         engine = self._engine()

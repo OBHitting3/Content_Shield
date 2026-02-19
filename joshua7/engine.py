@@ -9,6 +9,8 @@ from typing import Any
 from joshua7 import __version__
 from joshua7.config import Settings, get_settings
 from joshua7.models import (
+    RiskAxis,
+    RiskTaxonomy,
     Severity,
     ValidationFinding,
     ValidationRequest,
@@ -31,6 +33,97 @@ _REGISTRY: dict[str, type[BaseValidator]] = {
     "prompt_injection": PromptInjectionDetector,
     "readability": ReadabilityScorer,
 }
+
+# ---------------------------------------------------------------------------
+# RISK_TAXONOMY_v0 — weighted composite scoring
+# ---------------------------------------------------------------------------
+_SEVERITY_POINTS = {
+    Severity.INFO: 0,
+    Severity.WARNING: 15,
+    Severity.ERROR: 40,
+    Severity.CRITICAL: 80,
+}
+
+_RISK_AXES: list[dict[str, Any]] = [
+    {"axis": "A", "label": "Synthetic Artifacts", "weight": 0.30,
+     "validators": ["forbidden_phrases", "readability"]},
+    {"axis": "B", "label": "Hallucination / Factual Integrity", "weight": 0.25,
+     "validators": ["readability"]},
+    {"axis": "C", "label": "Brand Safety / GARM", "weight": 0.20,
+     "validators": ["brand_voice"]},
+    {"axis": "D", "label": "Regulatory Compliance / PII+Disclosure", "weight": 0.15,
+     "validators": ["pii"]},
+    {"axis": "E", "label": "Adversarial Robustness / Injection", "weight": 0.10,
+     "validators": ["prompt_injection"]},
+]
+
+
+def _risk_level(score: float) -> str:
+    if score < 20:
+        return "GREEN"
+    if score < 50:
+        return "YELLOW"
+    if score < 80:
+        return "ORANGE"
+    return "RED"
+
+
+def _axis_score_from_results(
+    validator_names: list[str],
+    results_map: dict[str, ValidationResult],
+) -> float:
+    """Derive a 0-100 raw axis score from the mapped validators' findings."""
+    total_points = 0.0
+    contributor_count = 0
+
+    for vname in validator_names:
+        result = results_map.get(vname)
+        if result is None:
+            continue
+        contributor_count += 1
+
+        if result.passed and not result.findings:
+            continue
+
+        if not result.passed and result.score is not None:
+            inverted = max(0.0, 100.0 - result.score)
+            total_points += inverted
+            continue
+
+        finding_points = sum(
+            _SEVERITY_POINTS.get(f.severity, 0) for f in result.findings
+        )
+        total_points += min(finding_points, 100.0)
+
+    if contributor_count == 0:
+        return 0.0
+    return min(total_points / contributor_count, 100.0)
+
+
+def compute_risk_taxonomy(results: list[ValidationResult]) -> RiskTaxonomy:
+    """Build a RISK_TAXONOMY_v0 from a list of validator results."""
+    results_map = {r.validator_name: r for r in results}
+    axes: list[RiskAxis] = []
+    composite = 0.0
+
+    for axis_def in _RISK_AXES:
+        raw = _axis_score_from_results(axis_def["validators"], results_map)
+        weighted = raw * axis_def["weight"]
+        composite += weighted
+        axes.append(RiskAxis(
+            axis=axis_def["axis"],
+            label=axis_def["label"],
+            weight=axis_def["weight"],
+            raw_score=round(raw, 1),
+            weighted_score=round(weighted, 2),
+        ))
+
+    composite = round(min(composite, 100.0), 1)
+    return RiskTaxonomy(
+        composite_risk_score=composite,
+        risk_level=_risk_level(composite),
+        axes=axes,
+    )
 
 
 class ValidationEngine:
@@ -82,6 +175,11 @@ class ValidationEngine:
                         ],
                     ),
                 ],
+                risk=RiskTaxonomy(
+                    composite_risk_score=100.0,
+                    risk_level="RED",
+                    axes=[],
+                ),
                 text_length=len(request.text),
                 validators_run=0,
             )
@@ -106,11 +204,14 @@ class ValidationEngine:
             results.append(result)
 
         all_passed = bool(results) and all(r.passed for r in results)
+        risk = compute_risk_taxonomy(results)
+
         return ValidationResponse(
             request_id=rid,
             version=__version__,
             passed=all_passed,
             results=results,
+            risk=risk,
             text_length=len(request.text),
             validators_run=len(results),
         )

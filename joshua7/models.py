@@ -65,6 +65,32 @@ class ValidationRequest(BaseModel):
     )
 
 
+class RiskAxis(BaseModel):
+    """Score for a single axis of the RISK_TAXONOMY_v0."""
+
+    axis: str
+    label: str
+    weight: float
+    raw_score: float = Field(description="Raw axis score 0-100 (100 = maximum risk).")
+    weighted_score: float = Field(description="raw_score * weight contribution.")
+
+
+class RiskTaxonomy(BaseModel):
+    """RISK_TAXONOMY_v0 composite risk assessment."""
+
+    composite_risk_score: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=100.0,
+        description="Weighted composite risk score (0.0–100.0).",
+    )
+    risk_level: str = Field(
+        default="GREEN",
+        description="GREEN (0-19) | YELLOW (20-49) | ORANGE (50-79) | RED (80-100).",
+    )
+    axes: list[RiskAxis] = Field(default_factory=list)
+
+
 class ValidationResponse(BaseModel):
     """Outbound response from the validation engine."""
 
@@ -79,5 +105,6 @@ class ValidationResponse(BaseModel):
     version: str = Field(default="", description="Engine version.")
     passed: bool = Field(description="True only if every validator passed.")
     results: list[ValidationResult] = Field(default_factory=list)
+    risk: RiskTaxonomy = Field(default_factory=RiskTaxonomy)
     text_length: int = 0
     validators_run: int = 0

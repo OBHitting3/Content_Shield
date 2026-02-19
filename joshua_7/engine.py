@@ -6,9 +6,9 @@ import logging
 import uuid
 from typing import Any
 
-from joshua7 import __version__
-from joshua7.config import Settings, get_settings
-from joshua7.models import (
+from joshua_7 import __version__
+from joshua_7.config import Settings, get_settings
+from joshua_7.models import (
     RiskAxis,
     RiskTaxonomy,
     Severity,
@@ -17,13 +17,13 @@ from joshua7.models import (
     ValidationResponse,
     ValidationResult,
 )
-from joshua7.sanitize import sanitize_input
-from joshua7.validators.base import BaseValidator
-from joshua7.validators.brand_voice import BrandVoiceScorer
-from joshua7.validators.forbidden_phrases import ForbiddenPhraseDetector
-from joshua7.validators.pii import PIIValidator
-from joshua7.validators.prompt_injection import PromptInjectionDetector
-from joshua7.validators.readability import ReadabilityScorer
+from joshua_7.sanitize import sanitize_input
+from joshua_7.validators.base import BaseValidator
+from joshua_7.validators.brand_voice import BrandVoiceScorer
+from joshua_7.validators.forbidden_phrases import ForbiddenPhraseDetector
+from joshua_7.validators.pii import PIIValidator
+from joshua_7.validators.prompt_injection import PromptInjectionDetector
+from joshua_7.validators.readability import ReadabilityScorer
 
 logger = logging.getLogger(__name__)
 

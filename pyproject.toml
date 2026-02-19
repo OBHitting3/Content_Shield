@@ -3,7 +3,7 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "joshua7"
+name = "joshua_7"
 version = "0.1.0"
 description = "Pre-publication AI content validation engine"
 readme = "README.md"
@@ -32,10 +32,10 @@ dev = [
 ]
 
 [project.scripts]
-joshua7 = "joshua7.cli.main:app"
+joshua_7 = "joshua_7.cli.main:app"
 
 [tool.setuptools.packages.find]
-include = ["joshua7*"]
+include = ["joshua_7*"]
 
 [tool.ruff]
 target-version = "py310"

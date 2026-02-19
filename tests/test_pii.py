@@ -1,6 +1,6 @@
 """Tests for the PII Validator."""
 
-from joshua7.validators.pii import PIIValidator
+from joshua_7.validators.pii import PIIValidator
 
 
 class TestPIIValidator:

@@ -9,10 +9,10 @@ import uuid
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
-from joshua7 import __version__
-from joshua7.api.routes import router
-from joshua7.config import get_settings
-from joshua7.engine import ValidationEngine
+from joshua_7 import __version__
+from joshua_7.api.routes import router
+from joshua_7.config import get_settings
+from joshua_7.engine import ValidationEngine
 
 logger = logging.getLogger(__name__)
 

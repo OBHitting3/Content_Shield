@@ -5,7 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any
 
-from joshua7.models import ValidationResult
+from joshua_7.models import ValidationResult
 
 
 class BaseValidator(ABC):

@@ -6,8 +6,8 @@ import logging
 import re
 from typing import Any
 
-from joshua7.models import Severity, ValidationFinding, ValidationResult
-from joshua7.validators.base import BaseValidator
+from joshua_7.models import Severity, ValidationFinding, ValidationResult
+from joshua_7.validators.base import BaseValidator
 
 logger = logging.getLogger(__name__)
 

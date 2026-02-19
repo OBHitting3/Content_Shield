@@ -10,22 +10,22 @@ test:
 	pytest --tb=short -v
 
 test-cov:
-	pytest --cov=joshua7 --cov-report=term-missing
+	pytest --cov=joshua_7 --cov-report=term-missing
 
 lint:
-	ruff check joshua7/ tests/
+	ruff check joshua_7/ tests/
 
 format:
-	ruff format joshua7/ tests/
+	ruff format joshua_7/ tests/
 
 serve:
-	uvicorn joshua7.api.main:app --reload --port 8000
+	uvicorn joshua_7.api.main:app --reload --port 8000
 
 docker-build:
-	docker build -t joshua7 .
+	docker build -t joshua_7 .
 
 docker-run:
-	docker run -p 8000:8000 joshua7
+	docker run -p 8000:8000 joshua_7
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true

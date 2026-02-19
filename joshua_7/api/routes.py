@@ -6,9 +6,9 @@ import hmac
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
-from joshua7.config import Settings, get_settings
-from joshua7.engine import ValidationEngine
-from joshua7.models import ValidationRequest, ValidationResponse
+from joshua_7.config import Settings, get_settings
+from joshua_7.engine import ValidationEngine
+from joshua_7.models import ValidationRequest, ValidationResponse
 
 router = APIRouter(tags=["validation"])
 

@@ -9,13 +9,13 @@ import typer
 import uvicorn
 from pydantic import ValidationError
 
-from joshua7 import __version__
-from joshua7.config import get_settings
-from joshua7.engine import ValidationEngine
-from joshua7.models import MAX_TEXT_LENGTH, ValidationResponse
+from joshua_7 import __version__
+from joshua_7.config import get_settings
+from joshua_7.engine import ValidationEngine
+from joshua_7.models import MAX_TEXT_LENGTH, ValidationResponse
 
 app = typer.Typer(
-    name="joshua7",
+    name="joshua_7",
     help="Joshua 7 — Content Shield: Pre-publication AI content validation.",
     add_completion=False,
 )
@@ -57,9 +57,9 @@ def validate(
         typer.echo(
             "Error: provide exactly one input source: --text, --file, or --stdin\n"
             "Examples:\n"
-            '  joshua7 validate --text "Your content here"\n'
-            "  joshua7 validate --file article.txt\n"
-            "  echo 'content' | joshua7 validate --stdin",
+            '  joshua_7 validate --text "Your content here"\n'
+            "  joshua_7 validate --file article.txt\n"
+            "  echo 'content' | joshua_7 validate --stdin",
             err=True,
         )
         raise typer.Exit(code=2)
@@ -159,7 +159,7 @@ def serve(
 ) -> None:
     """Start the FastAPI server."""
     uvicorn.run(
-        "joshua7.api.main:app",
+        "joshua_7.api.main:app",
         host=host,
         port=port,
         reload=reload,

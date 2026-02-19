@@ -5,13 +5,13 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from joshua7.api.main import create_app
-from joshua7.config import Settings
-from joshua7.engine import ValidationEngine
-from joshua7.models import ValidationRequest
-from joshua7.sanitize import sanitize_input
-from joshua7.validators.pii import PIIValidator
-from joshua7.validators.prompt_injection import PromptInjectionDetector
+from joshua_7.api.main import create_app
+from joshua_7.config import Settings
+from joshua_7.engine import ValidationEngine
+from joshua_7.models import ValidationRequest
+from joshua_7.sanitize import sanitize_input
+from joshua_7.validators.pii import PIIValidator
+from joshua_7.validators.prompt_injection import PromptInjectionDetector
 
 # ---------------------------------------------------------------------------
 # Input sanitization

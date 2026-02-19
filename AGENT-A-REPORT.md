@@ -78,7 +78,7 @@ The original MVP codebase was functional but had **critical security vulnerabili
 
 | Change | File(s) | Why |
 |--------|---------|-----|
-| `--stdin` support | `cli/main.py` | `echo "text" \| joshua7 validate --stdin` now works |
+| `--stdin` support | `cli/main.py` | `echo "text" \| joshua_7 validate --stdin` now works |
 | Mutual exclusion of input sources | `cli/main.py` | Enforces exactly one of `--text`, `--file`, `--stdin` |
 | Better error messages | `cli/main.py` | Shows usage examples when no input provided |
 | File size pre-check | `cli/main.py` | Rejects files >2MB before reading into memory |
@@ -86,7 +86,7 @@ The original MVP codebase was functional but had **critical security vulnerabili
 | `--host` without `-h` shortcut | `cli/main.py` | Avoids `-h`/`--help` conflict |
 | Request ID in CLI report | `cli/main.py` | Shows request ID for troubleshooting |
 | Comma-formatted text length | `cli/main.py` | `500,000 chars` instead of `500000 chars` |
-| `list` subcommand renamed | `cli/main.py` | `joshua7 list` instead of `joshua7 list-validators` |
+| `list` subcommand renamed | `cli/main.py` | `joshua_7 list` instead of `joshua_7 list-validators` |
 
 ### Robustness
 

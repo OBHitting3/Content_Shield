@@ -1,6 +1,6 @@
 """Tests for the Forbidden Phrase Detector."""
 
-from joshua7.validators.forbidden_phrases import ForbiddenPhraseDetector
+from joshua_7.validators.forbidden_phrases import ForbiddenPhraseDetector
 
 
 class TestForbiddenPhraseDetector:

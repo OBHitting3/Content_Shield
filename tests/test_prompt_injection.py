@@ -1,6 +1,6 @@
 """Tests for the Prompt Injection Detector."""
 
-from joshua7.validators.prompt_injection import PromptInjectionDetector
+from joshua_7.validators.prompt_injection import PromptInjectionDetector
 
 
 class TestPromptInjectionDetector:

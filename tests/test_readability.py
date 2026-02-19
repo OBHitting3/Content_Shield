@@ -1,6 +1,6 @@
 """Tests for the Readability Scorer."""
 
-from joshua7.validators.readability import ReadabilityScorer
+from joshua_7.validators.readability import ReadabilityScorer
 
 
 class TestReadabilityScorer:

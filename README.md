@@ -23,18 +23,18 @@ Pre-publication AI content validation engine.
 pip install -e ".[dev]"
 
 # Run CLI
-joshua7 validate --text "Check this content for issues."
-joshua7 validate --file article.txt
-echo "piped content" | joshua7 validate --stdin
+joshua_7 validate --text "Check this content for issues."
+joshua_7 validate --file article.txt
+echo "piped content" | joshua_7 validate --stdin
 
 # JSON output
-joshua7 validate --text "Hello world" --json
+joshua_7 validate --text "Hello world" --json
 
 # List available validators
-joshua7 list
+joshua_7 list
 
 # Run API server
-joshua7 serve --port 8000
+joshua_7 serve --port 8000
 
 # Run tests
 pytest
@@ -79,7 +79,7 @@ Python · FastAPI · Typer CLI · Pydantic v2 · Cloud Run ready
 ## Project Structure
 
 ```
-joshua7/
+joshua_7/
 ├── __init__.py
 ├── config.py          # Settings & configuration
 ├── models.py          # Pydantic data models
@@ -108,8 +108,8 @@ joshua7/
 ## Docker
 
 ```bash
-docker build -t joshua7 .
-docker run -p 8000:8000 joshua7
+docker build -t joshua_7 .
+docker run -p 8000:8000 joshua_7
 ```
 
 ## License

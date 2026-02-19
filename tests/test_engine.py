@@ -2,9 +2,9 @@
 
 from unittest.mock import patch
 
-from joshua7.config import Settings
-from joshua7.engine import ValidationEngine
-from joshua7.models import ValidationRequest
+from joshua_7.config import Settings
+from joshua_7.engine import ValidationEngine
+from joshua_7.models import ValidationRequest
 
 
 class TestValidationEngine:

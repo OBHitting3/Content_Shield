@@ -1,6 +1,6 @@
 """Tests for the Brand Voice Scorer."""
 
-from joshua7.validators.brand_voice import BrandVoiceScorer
+from joshua_7.validators.brand_voice import BrandVoiceScorer
 
 
 class TestBrandVoiceScorer:

@@ -1,8 +1,8 @@
 """Tests for RISK_TAXONOMY_v0 composite scoring."""
 
-from joshua7.config import Settings
-from joshua7.engine import ValidationEngine, compute_risk_taxonomy
-from joshua7.models import Severity, ValidationFinding, ValidationResult
+from joshua_7.config import Settings
+from joshua_7.engine import ValidationEngine, compute_risk_taxonomy
+from joshua_7.models import Severity, ValidationFinding, ValidationResult
 
 
 class TestRiskTaxonomy:

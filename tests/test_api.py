@@ -3,7 +3,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from joshua7.api.main import create_app
+from joshua_7.api.main import create_app
 
 
 @pytest.fixture

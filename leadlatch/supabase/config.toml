@@ -1,0 +1,17 @@
+[project]
+id = "your-project-ref"
+
+[api]
+port = 54321
+
+[db]
+port = 54322
+
+[studio]
+port = 54323
+
+[functions.lead-intake]
+verify_jwt = false
+
+[functions.n8n-event-ingest]
+verify_jwt = false

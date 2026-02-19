@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from typing import Any
 
-from fastapi import HTTPException
-from pydantic import ValidationError
-
+from joshua7 import __version__
 from joshua7.config import Settings, get_settings
 from joshua7.models import (
     Severity,
@@ -54,8 +53,39 @@ class ValidationEngine:
     def available_validators(self) -> list[str]:
         return list(self._validators.keys())
 
-    def run(self, request: ValidationRequest) -> ValidationResponse:
+    def run(
+        self,
+        request: ValidationRequest,
+        request_id: str | None = None,
+    ) -> ValidationResponse:
         """Execute requested validators and return aggregated response."""
+        rid = request_id or uuid.uuid4().hex
+        max_len = self._settings.max_text_length
+        if len(request.text) > max_len:
+            return ValidationResponse(
+                request_id=rid,
+                version=__version__,
+                passed=False,
+                results=[
+                    ValidationResult(
+                        validator_name="_engine",
+                        passed=False,
+                        findings=[
+                            ValidationFinding(
+                                validator_name="_engine",
+                                severity=Severity.ERROR,
+                                message=(
+                                    f"Text length {len(request.text):,} exceeds "
+                                    f"configured maximum of {max_len:,} characters."
+                                ),
+                            ),
+                        ],
+                    ),
+                ],
+                text_length=len(request.text),
+                validators_run=0,
+            )
+
         selected = self._resolve_validators(request.validators)
         results: list[ValidationResult] = []
 
@@ -87,28 +117,28 @@ class ValidationEngine:
                     )
                 )
 
-        all_passed = all(r.passed for r in results)
+        all_passed = bool(results) and all(r.passed for r in results)
         return ValidationResponse(
+            request_id=rid,
+            version=__version__,
             passed=all_passed,
             results=results,
             text_length=len(request.text),
             validators_run=len(results),
         )
 
-    def validate_text(self, text: str, validators: list[str] | None = None) -> ValidationResponse:
+    def validate_text(
+        self,
+        text: str,
+        validators: list[str] | None = None,
+        request_id: str | None = None,
+    ) -> ValidationResponse:
         """Convenience wrapper that builds a request from plain text."""
-        try:
-            request = ValidationRequest(
-                text=text,
-                validators=validators or ["all"],
-            )
-        except ValidationError as exc:
-            logger.info("Invalid validate_text input rejected", exc_info=exc)
-            raise HTTPException(
-                status_code=422,
-                detail="Invalid request: text must be a non-empty string.",
-            ) from None
-        return self.run(request)
+        request = ValidationRequest(
+            text=text,
+            validators=validators or ["all"],
+        )
+        return self.run(request, request_id=request_id)
 
     def _resolve_validators(self, names: list[str]) -> list[str]:
         if "all" in names:
@@ -117,4 +147,6 @@ class ValidationEngine:
         for n in names:
             if n in self._validators:
                 resolved.append(n)
+            else:
+                logger.warning("Unknown validator requested: '%s' — skipping", n)
         return resolved

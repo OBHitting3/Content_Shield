@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 import re
-from typing import Any
 
 from joshua7.models import Severity, ValidationFinding, ValidationResult
 from joshua7.validators.base import BaseValidator
+
+logger = logging.getLogger(__name__)
 
 _INJECTION_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("ignore_instructions", re.compile(
@@ -41,6 +43,14 @@ _INJECTION_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
         r"<\s*(?:hidden|invisible|secret)\s*>",
         re.IGNORECASE,
     )),
+    ("forget_everything", re.compile(
+        r"forget\s+(everything|all|what)\s+(you|I)\s+(know|said|told)",
+        re.IGNORECASE,
+    )),
+    ("act_as", re.compile(
+        r"(?:act|behave|respond)\s+as\s+(?:if\s+)?(?:you\s+(?:are|were)\s+)?(?:a\s+)?(?:different|new|another)",
+        re.IGNORECASE,
+    )),
 ]
 
 
@@ -48,10 +58,6 @@ class PromptInjectionDetector(BaseValidator):
     """Detect prompt-injection attacks embedded in content."""
 
     name = "prompt_injection"
-
-    def __init__(self, config: dict[str, Any] | None = None) -> None:
-        super().__init__(config)
-        self._threshold = self.config.get("prompt_injection_threshold", 0.6)
 
     def validate(self, text: str) -> ValidationResult:
         findings: list[ValidationFinding] = []

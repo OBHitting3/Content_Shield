@@ -1,4 +1,4 @@
-"""PII Validator — detects emails, phone numbers, and SSNs."""
+"""PII Validator — detects emails, phone numbers, SSNs, and credit cards."""
 
 from __future__ import annotations
 
@@ -19,20 +19,28 @@ _PII_PATTERNS: dict[str, re.Pattern[str]] = {
     "phone": re.compile(
         r"(?<!\d)"
         r"(?:\+?1[\s\-.]?)?"
-        r"\(?\d{3}\)?[\s\-.]?"
+        r"(?:"
+        r"\(\d{3}\)[\s\-.]?"
+        r"|\d{3}[\s\-.]"
+        r")"
         r"\d{3}[\s\-.]?\d{4}"
         r"(?!\d)",
     ),
     "ssn": re.compile(
-        r"(?<!\d)\d{3}[\s\-]\d{2}[\s\-]\d{4}(?!\d)",
+        r"(?<!\d)"
+        r"(?!000|666|9\d\d)"
+        r"\d{3}[\s\-]"
+        r"(?!00)\d{2}[\s\-]"
+        r"(?!0000)\d{4}"
+        r"(?!\d)",
     ),
     "credit_card": re.compile(
         r"(?<!\d)"
         r"(?:"
-        r"4\d{3}[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}"  # Visa
-        r"|5[1-5]\d{2}[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}"  # MasterCard
-        r"|3[47]\d{2}[\s\-]?\d{6}[\s\-]?\d{5}"  # Amex
-        r"|6(?:011|5\d{2})[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}"  # Discover
+        r"4\d{3}[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}"
+        r"|5[1-5]\d{2}[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}"
+        r"|3[47]\d{2}[\s\-]?\d{6}[\s\-]?\d{5}"
+        r"|6(?:011|5\d{2})[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}"
         r")"
         r"(?!\d)",
     ),

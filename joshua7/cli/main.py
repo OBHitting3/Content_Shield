@@ -30,7 +30,11 @@ def _version_callback(value: bool) -> None:
 @app.callback()
 def main(
     version: bool | None = typer.Option(
-        None, "--version", "-V", callback=_version_callback, is_eager=True,
+        None,
+        "--version",
+        "-V",
+        callback=_version_callback,
+        is_eager=True,
         help="Show version and exit.",
     ),
 ) -> None:
@@ -43,11 +47,16 @@ def validate(
     file: Path | None = typer.Option(None, "--file", "-f", help="Path to file to validate."),
     stdin: bool = typer.Option(False, "--stdin", "-s", help="Read content from stdin."),
     validators: str | None = typer.Option(
-        "all", "--validators", "-v",
+        "all",
+        "--validators",
+        "-v",
         help="Comma-separated validator names, or 'all'.",
     ),
     config: Path | None = typer.Option(
-        None, "--config", "-c", help="Path to YAML config file.",
+        None,
+        "--config",
+        "-c",
+        help="Path to YAML config file.",
     ),
     output_json: bool = typer.Option(False, "--json", "-j", help="Output raw JSON."),
 ) -> None:
@@ -128,14 +137,14 @@ def _print_report(response: ValidationResponse) -> None:
     else:
         status = typer.style("FAIL", fg=typer.colors.RED, bold=True)
 
-    typer.echo(f"\n{'='*60}")
+    typer.echo(f"\n{'=' * 60}")
     typer.echo("  Joshua 7 — Content Shield Report")
     typer.echo(f"  Request ID: {response.request_id}")
-    typer.echo(f"{'='*60}")
+    typer.echo(f"{'=' * 60}")
     typer.echo(f"  Overall: {status}")
     typer.echo(f"  Text length: {response.text_length:,} chars")
     typer.echo(f"  Validators run: {response.validators_run}")
-    typer.echo(f"{'─'*60}")
+    typer.echo(f"{'─' * 60}")
 
     for result in response.results:
         if result.passed:
@@ -148,12 +157,28 @@ def _print_report(response: ValidationResponse) -> None:
             sev = finding.severity.value.upper()
             typer.echo(f"      [{sev}] {finding.message}")
 
-    typer.echo(f"{'='*60}\n")
+    risk = response.risk
+    typer.echo(f"{'─' * 60}")
+    level_colors = {
+        "GREEN": typer.colors.GREEN,
+        "YELLOW": typer.colors.YELLOW,
+        "ORANGE": typer.colors.RED,
+        "RED": typer.colors.RED,
+    }
+    level_styled = typer.style(
+        risk.risk_level,
+        fg=level_colors.get(risk.risk_level, typer.colors.WHITE),
+        bold=True,
+    )
+    typer.echo(f"  Risk: {level_styled}  (composite score: {risk.composite_risk_score})")
+    for axis in risk.axes:
+        typer.echo(f"    {axis.axis}. {axis.label}: {axis.raw_score} (w={axis.weight})")
+    typer.echo(f"{'=' * 60}\n")
 
 
 @app.command()
 def serve(
-    host: str = typer.Option("0.0.0.0", "--host", help="Bind address."),
+    host: str = typer.Option("127.0.0.1", "--host", help="Bind address."),
     port: int = typer.Option(8000, "--port", "-p", help="Port number."),
     reload: bool = typer.Option(False, "--reload", help="Enable auto-reload."),
 ) -> None:

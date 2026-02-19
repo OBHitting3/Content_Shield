@@ -23,9 +23,11 @@ class TestBrandVoiceScorer:
         assert result.score < 70.0
 
     def test_keyword_boost(self):
-        v = BrandVoiceScorer(config={
-            "brand_voice_keywords": ["innovation", "security", "trust"],
-        })
+        v = BrandVoiceScorer(
+            config={
+                "brand_voice_keywords": ["innovation", "security", "trust"],
+            }
+        )
         text = "Our innovation in security builds trust with every customer."
         result = v.validate(text)
         assert result.score is not None

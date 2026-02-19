@@ -13,12 +13,28 @@ logger = logging.getLogger(__name__)
 
 _TONE_PENALTY_WORDS: dict[str, list[str]] = {
     "professional": [
-        "lol", "omg", "bruh", "gonna", "wanna", "kinda", "sorta",
-        "tbh", "ngl", "fr fr", "yo", "dude", "bro",
+        "lol",
+        "omg",
+        "bruh",
+        "gonna",
+        "wanna",
+        "kinda",
+        "sorta",
+        "tbh",
+        "ngl",
+        "fr fr",
+        "yo",
+        "dude",
+        "bro",
     ],
     "casual": [
-        "hereby", "aforementioned", "pursuant", "notwithstanding",
-        "heretofore", "therein", "whereas",
+        "hereby",
+        "aforementioned",
+        "pursuant",
+        "notwithstanding",
+        "heretofore",
+        "therein",
+        "whereas",
     ],
 }
 
@@ -79,7 +95,8 @@ class BrandVoiceScorer(BaseValidator):
 
         if self._keywords:
             keyword_hits = sum(
-                1 for kw in self._keywords
+                1
+                for kw in self._keywords
                 if re.search(rf"\b{re.escape(kw)}\b", text, re.IGNORECASE)
             )
             keyword_ratio = keyword_hits / len(self._keywords)

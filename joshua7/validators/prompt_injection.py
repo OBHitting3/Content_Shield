@@ -11,46 +11,76 @@ from joshua7.validators.base import BaseValidator
 logger = logging.getLogger(__name__)
 
 _INJECTION_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
-    ("ignore_instructions", re.compile(
-        r"ignore\s+(all\s+)?(previous|prior|above)\s+(instructions?|prompts?|rules?)",
-        re.IGNORECASE,
-    )),
-    ("system_prompt_leak", re.compile(
-        r"(show|reveal|print|output|repeat)\s+(your\s+)?(system\s+prompt|instructions|rules)",
-        re.IGNORECASE,
-    )),
-    ("role_override", re.compile(
-        r"you\s+are\s+now\s+(?:a\s+)?(?:DAN|unrestricted|jailbroken|evil)",
-        re.IGNORECASE,
-    )),
-    ("delimiter_injection", re.compile(
-        r"```\s*(system|assistant|user)\s*\n",
-        re.IGNORECASE,
-    )),
-    ("encoded_injection", re.compile(
-        r"(?:base64|rot13|hex)\s*(?:decode|encode)\s*[:=]",
-        re.IGNORECASE,
-    )),
-    ("do_anything_now", re.compile(
-        r"(?:DAN|do\s+anything\s+now)\s+mode",
-        re.IGNORECASE,
-    )),
-    ("instruction_override", re.compile(
-        r"(?:new|updated?|override)\s+(?:system\s+)?(?:instructions?|prompt|rules?)\s*[:=]",
-        re.IGNORECASE,
-    )),
-    ("hidden_text", re.compile(
-        r"<\s*(?:hidden|invisible|secret)\s*>",
-        re.IGNORECASE,
-    )),
-    ("forget_everything", re.compile(
-        r"forget\s+(everything|all|what)\s+(you|I)\s+(know|said|told)",
-        re.IGNORECASE,
-    )),
-    ("act_as", re.compile(
-        r"(?:act|behave|respond)\s+as\s+(?:if\s+)?(?:you\s+(?:are|were)\s+)?(?:a\s+)?(?:different|new|another)",
-        re.IGNORECASE,
-    )),
+    (
+        "ignore_instructions",
+        re.compile(
+            r"ignore\s+(all\s+)?(previous|prior|above)\s+(instructions?|prompts?|rules?)",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "system_prompt_leak",
+        re.compile(
+            r"(show|reveal|print|output|repeat)\s+(your\s+)?(system\s+prompt|instructions|rules)",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "role_override",
+        re.compile(
+            r"you\s+are\s+now\s+(?:a\s+)?(?:DAN|unrestricted|jailbroken|evil)",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "delimiter_injection",
+        re.compile(
+            r"```\s*(system|assistant|user)\s*\n",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "encoded_injection",
+        re.compile(
+            r"(?:base64|rot13|hex)\s*(?:decode|encode)\s*[:=]",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "do_anything_now",
+        re.compile(
+            r"(?:DAN|do\s+anything\s+now)\s+mode",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "instruction_override",
+        re.compile(
+            r"(?:new|updated?|override)\s+(?:system\s+)?(?:instructions?|prompt|rules?)\s*[:=]",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "hidden_text",
+        re.compile(
+            r"<\s*(?:hidden|invisible|secret)\s*>",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "forget_everything",
+        re.compile(
+            r"forget\s+(everything|all|what)\s+(you|I)\s+(know|said|told)",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "act_as",
+        re.compile(
+            r"(?:act|behave|respond)\s+as\s+(?:if\s+)?(?:you\s+(?:are|were)\s+)?(?:a\s+)?(?:different|new|another)",
+            re.IGNORECASE,
+        ),
+    ),
 ]
 
 

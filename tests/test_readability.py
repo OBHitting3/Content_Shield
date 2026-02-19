@@ -15,9 +15,7 @@ class TestReadabilityScorer:
         assert result.score is not None
 
     def test_very_complex_text_fails(self):
-        v = ReadabilityScorer(
-            config={"readability_min_score": 50.0, "readability_max_score": 80.0}
-        )
+        v = ReadabilityScorer(config={"readability_min_score": 50.0, "readability_max_score": 80.0})
         text = (
             "Notwithstanding the aforementioned presuppositions, the epistemological "
             "ramifications of ontological hermeneutics necessitate a comprehensive "
@@ -30,9 +28,7 @@ class TestReadabilityScorer:
             assert result.passed is False
 
     def test_very_simple_text_above_max(self):
-        v = ReadabilityScorer(
-            config={"readability_min_score": 30.0, "readability_max_score": 60.0}
-        )
+        v = ReadabilityScorer(config={"readability_min_score": 30.0, "readability_max_score": 60.0})
         text = "I am a cat. I sit. I eat. I sleep. I play."
         result = v.validate(text)
         assert result.score is not None
@@ -51,9 +47,7 @@ class TestReadabilityScorer:
         assert result.validator_name == "readability"
 
     def test_custom_thresholds(self):
-        v = ReadabilityScorer(
-            config={"readability_min_score": 0.0, "readability_max_score": 100.0}
-        )
+        v = ReadabilityScorer(config={"readability_min_score": 0.0, "readability_max_score": 100.0})
         result = v.validate("This is a simple sentence.")
         assert result.passed is True
 
@@ -64,12 +58,8 @@ class TestReadabilityScorer:
 
     def test_grade_level_always_reported(self):
         """Grade level should appear in findings metadata even when text passes."""
-        v = ReadabilityScorer(
-            config={"readability_min_score": 0.0, "readability_max_score": 100.0}
-        )
-        result = v.validate(
-            "The team delivered a professional product to every customer on time."
-        )
+        v = ReadabilityScorer(config={"readability_min_score": 0.0, "readability_max_score": 100.0})
+        result = v.validate("The team delivered a professional product to every customer on time.")
         assert result.passed is True
         assert len(result.findings) >= 1
         info_finding = result.findings[0]

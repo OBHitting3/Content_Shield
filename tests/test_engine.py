@@ -125,11 +125,7 @@ class TestValidationEngine:
         response = engine.validate_text("A" * 100)
         assert response.passed is False
         assert response.validators_run == 0
-        assert any(
-            "exceeds" in f.message
-            for r in response.results
-            for f in r.findings
-        )
+        assert any("exceeds" in f.message for r in response.results for f in r.findings)
 
     def test_max_text_length_allows_under_limit(self):
         settings = Settings(max_text_length=500)

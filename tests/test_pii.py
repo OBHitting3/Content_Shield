@@ -30,9 +30,7 @@ class TestPIIValidator:
 
     def test_detects_multiple_pii(self):
         v = PIIValidator()
-        result = v.validate(
-            "Email me at alice@example.com or call 555-123-4567. SSN: 123-45-6789"
-        )
+        result = v.validate("Email me at alice@example.com or call 555-123-4567. SSN: 123-45-6789")
         assert result.passed is False
         pii_types = {f.metadata.get("pii_type") for f in result.findings}
         assert "email" in pii_types

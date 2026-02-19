@@ -45,16 +45,31 @@ _SEVERITY_POINTS = {
 }
 
 _RISK_AXES: list[dict[str, Any]] = [
-    {"axis": "A", "label": "Synthetic Artifacts", "weight": 0.30,
-     "validators": ["forbidden_phrases", "readability"]},
-    {"axis": "B", "label": "Hallucination / Factual Integrity", "weight": 0.25,
-     "validators": ["readability"]},
-    {"axis": "C", "label": "Brand Safety / GARM", "weight": 0.20,
-     "validators": ["brand_voice"]},
-    {"axis": "D", "label": "Regulatory Compliance / PII+Disclosure", "weight": 0.15,
-     "validators": ["pii"]},
-    {"axis": "E", "label": "Adversarial Robustness / Injection", "weight": 0.10,
-     "validators": ["prompt_injection"]},
+    {
+        "axis": "A",
+        "label": "Synthetic Artifacts",
+        "weight": 0.30,
+        "validators": ["forbidden_phrases", "readability"],
+    },
+    {
+        "axis": "B",
+        "label": "Hallucination / Factual Integrity",
+        "weight": 0.25,
+        "validators": ["readability"],
+    },
+    {"axis": "C", "label": "Brand Safety / GARM", "weight": 0.20, "validators": ["brand_voice"]},
+    {
+        "axis": "D",
+        "label": "Regulatory Compliance / PII+Disclosure",
+        "weight": 0.15,
+        "validators": ["pii"],
+    },
+    {
+        "axis": "E",
+        "label": "Adversarial Robustness / Injection",
+        "weight": 0.10,
+        "validators": ["prompt_injection"],
+    },
 ]
 
 
@@ -90,9 +105,7 @@ def _axis_score_from_results(
             total_points += inverted
             continue
 
-        finding_points = sum(
-            _SEVERITY_POINTS.get(f.severity, 0) for f in result.findings
-        )
+        finding_points = sum(_SEVERITY_POINTS.get(f.severity, 0) for f in result.findings)
         total_points += min(finding_points, 100.0)
 
     if contributor_count == 0:
@@ -143,13 +156,15 @@ def compute_risk_taxonomy(results: list[ValidationResult]) -> RiskTaxonomy:
         raw = _axis_score_from_results(axis_def["validators"], results_map)
         weighted = raw * axis_def["weight"]
         weighted_sum += weighted
-        axes.append(RiskAxis(
-            axis=axis_def["axis"],
-            label=axis_def["label"],
-            weight=axis_def["weight"],
-            raw_score=round(raw, 1),
-            weighted_score=round(weighted, 2),
-        ))
+        axes.append(
+            RiskAxis(
+                axis=axis_def["axis"],
+                label=axis_def["label"],
+                weight=axis_def["weight"],
+                raw_score=round(raw, 1),
+                weighted_score=round(weighted, 2),
+            )
+        )
 
     escalation = _critical_escalation(results)
     composite = round(min(weighted_sum + escalation, 100.0), 1)

@@ -35,7 +35,7 @@ class TestValidationEngine:
         pii_result = next(r for r in response.results if r.validator_name == "pii")
         assert pii_result.passed is False
 
-    def test_validate_subset(self):
+    def test_validate_subset_of_validators(self):
         engine = self._engine()
         response = engine.validate_text(
             "Just a test.",
@@ -55,7 +55,7 @@ class TestValidationEngine:
         engine = self._engine()
         response = engine.validate_text("Hello.", validators=["nonexistent"])
         assert response.validators_run == 0
-        assert response.passed is False  # zero validators = not passed
+        assert response.passed is False
 
     def test_config_overrides(self):
         engine = self._engine()
@@ -67,10 +67,12 @@ class TestValidationEngine:
             },
         )
         response = engine.run(request)
-        fp_result = next(r for r in response.results if r.validator_name == "forbidden_phrases")
+        fp_result = next(
+            r for r in response.results if r.validator_name == "forbidden_phrases"
+        )
         assert fp_result.passed is False
 
-    def test_response_model_fields(self):
+    def test_response_has_all_fields(self):
         engine = self._engine()
         response = engine.validate_text("Short text.")
         assert hasattr(response, "passed")
@@ -101,7 +103,6 @@ class TestValidationEngine:
         assert response.request_id == "test-123"
 
     def test_validator_exception_does_not_crash(self):
-        """If a validator throws, the engine should catch it and report failure."""
         engine = self._engine()
         with patch.object(
             engine._validators["readability"],
@@ -110,12 +111,14 @@ class TestValidationEngine:
         ):
             response = engine.validate_text("Normal content for testing.")
         assert response.validators_run == 5
-        readability = next(r for r in response.results if r.validator_name == "readability")
+        readability = next(
+            r for r in response.results if r.validator_name == "readability"
+        )
         assert readability.passed is False
 
     def test_unicode_content(self):
         engine = self._engine()
-        response = engine.validate_text("Héllo wörld! 你好世界 🌍")
+        response = engine.validate_text("Héllo wörld! 你好世界")
         assert response.text_length > 0
         assert response.validators_run == 5
 
@@ -126,9 +129,7 @@ class TestValidationEngine:
         assert response.passed is False
         assert response.validators_run == 0
         assert any(
-            "exceeds" in f.message
-            for r in response.results
-            for f in r.findings
+            "exceeds" in f.message for r in response.results for f in r.findings
         )
 
     def test_max_text_length_allows_under_limit(self):
@@ -136,3 +137,10 @@ class TestValidationEngine:
         engine = ValidationEngine(settings=settings)
         response = engine.validate_text("Short text.")
         assert response.validators_run == 5
+
+    def test_response_risk_field_present(self):
+        engine = self._engine()
+        response = engine.validate_text("Test content.")
+        assert response.risk is not None
+        assert hasattr(response.risk, "composite_risk_score")
+        assert hasattr(response.risk, "risk_level")

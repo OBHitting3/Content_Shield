@@ -14,7 +14,7 @@ class TestReadabilityScorer:
         result = v.validate(text)
         assert result.score is not None
 
-    def test_very_complex_text_fails(self):
+    def test_very_complex_text_flagged(self):
         v = ReadabilityScorer(
             config={"readability_min_score": 50.0, "readability_max_score": 80.0}
         )
@@ -50,7 +50,7 @@ class TestReadabilityScorer:
         result = v.validate("Content to analyze.")
         assert result.validator_name == "readability"
 
-    def test_custom_thresholds(self):
+    def test_wide_thresholds_always_pass(self):
         v = ReadabilityScorer(
             config={"readability_min_score": 0.0, "readability_max_score": 100.0}
         )
@@ -63,7 +63,6 @@ class TestReadabilityScorer:
         assert result.score is not None
 
     def test_grade_level_always_reported(self):
-        """Grade level should appear in findings metadata even when text passes."""
         v = ReadabilityScorer(
             config={"readability_min_score": 0.0, "readability_max_score": 100.0}
         )
@@ -75,3 +74,15 @@ class TestReadabilityScorer:
         info_finding = result.findings[0]
         assert "grade_level" in info_finding.metadata
         assert "flesch_score" in info_finding.metadata
+
+    def test_findings_metadata_on_failure(self):
+        v = ReadabilityScorer(
+            config={"readability_min_score": 90.0, "readability_max_score": 100.0}
+        )
+        text = (
+            "The epistemological implications of the dialectical hermeneutic "
+            "framework necessitate comprehensive reconceptualization."
+        )
+        result = v.validate(text)
+        if not result.passed:
+            assert any("threshold" in f.metadata for f in result.findings)

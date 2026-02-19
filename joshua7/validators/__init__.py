@@ -7,9 +7,9 @@ from joshua7.validators.prompt_injection import PromptInjectionDetector
 from joshua7.validators.readability import ReadabilityScorer
 
 __all__ = [
+    "BrandVoiceScorer",
     "ForbiddenPhraseDetector",
     "PIIValidator",
-    "BrandVoiceScorer",
     "PromptInjectionDetector",
     "ReadabilityScorer",
 ]

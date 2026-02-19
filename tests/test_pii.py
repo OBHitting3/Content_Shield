@@ -28,7 +28,7 @@ class TestPIIValidator:
         assert result.passed is False
         assert any(f.metadata.get("pii_type") == "ssn" for f in result.findings)
 
-    def test_detects_multiple_pii(self):
+    def test_detects_multiple_pii_types(self):
         v = PIIValidator()
         result = v.validate(
             "Email me at alice@example.com or call 555-123-4567. SSN: 123-45-6789"
@@ -38,7 +38,7 @@ class TestPIIValidator:
         assert "email" in pii_types
         assert "ssn" in pii_types
 
-    def test_disabled_patterns(self):
+    def test_disabled_patterns_ignored(self):
         v = PIIValidator(config={"pii_patterns_enabled": ["email"]})
         result = v.validate("SSN is 123-45-6789 and phone is 555-123-4567.")
         assert result.passed is True
@@ -48,7 +48,7 @@ class TestPIIValidator:
         result = v.validate("My email: test@test.com")
         assert result.findings[0].severity.value == "critical"
 
-    def test_pii_values_are_redacted(self):
+    def test_pii_values_never_in_findings(self):
         """SECURITY: actual PII must never appear in findings."""
         v = PIIValidator()
         result = v.validate("My email is secret@corp.com and SSN is 123-45-6789.")
@@ -66,12 +66,20 @@ class TestPIIValidator:
         assert f.metadata.get("redacted") == "***@***.***"
         assert "value" not in f.metadata
 
-    def test_unicode_email(self):
-        v = PIIValidator()
-        result = v.validate("Reach me at user@example.com or via carrier pigeon.")
-        assert result.passed is False
-
     def test_no_false_positive_on_at_sign(self):
         v = PIIValidator()
         result = v.validate("Look @ this cool thing!")
         assert result.passed is True
+
+    def test_span_offsets(self):
+        v = PIIValidator()
+        text = "Send to user@example.com please."
+        result = v.validate(text)
+        assert result.findings[0].span is not None
+        start, end = result.findings[0].span
+        assert "user@example.com" in text[start:end]
+
+    def test_validator_name(self):
+        v = PIIValidator()
+        result = v.validate("Clean text.")
+        assert result.validator_name == "pii"

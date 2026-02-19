@@ -18,7 +18,7 @@ class BaseValidator(ABC):
 
     @abstractmethod
     def validate(self, text: str) -> ValidationResult:
-        """Run the validator against *text* and return a result."""
+        """Run the validator against *text* and return a structured result."""
 
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__}>"

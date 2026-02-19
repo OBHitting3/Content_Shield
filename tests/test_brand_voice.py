@@ -23,9 +23,9 @@ class TestBrandVoiceScorer:
         assert result.score < 70.0
 
     def test_keyword_boost(self):
-        v = BrandVoiceScorer(config={
-            "brand_voice_keywords": ["innovation", "security", "trust"],
-        })
+        v = BrandVoiceScorer(
+            config={"brand_voice_keywords": ["innovation", "security", "trust"]}
+        )
         text = "Our innovation in security builds trust with every customer."
         result = v.validate(text)
         assert result.score is not None
@@ -37,7 +37,7 @@ class TestBrandVoiceScorer:
         result = v.validate(text)
         assert len(result.findings) > 0
 
-    def test_score_bounded(self):
+    def test_score_bounded_0_100(self):
         v = BrandVoiceScorer()
         result = v.validate("A" * 500)
         assert result.score is not None
@@ -48,22 +48,33 @@ class TestBrandVoiceScorer:
         result = v.validate("Test content.")
         assert result.validator_name == "brand_voice"
 
-    def test_no_false_positive_on_bro_in_broken(self):
-        """Word boundary fix: 'bro' should not match inside 'broken'."""
+    def test_no_false_positive_bro_in_broken(self):
+        """Word boundary fix: 'bro' must NOT match inside 'broken'."""
         v = BrandVoiceScorer()
         result = v.validate("The broken system was repaired by our professional team.")
-        off_tone_words = [f.metadata.get("word") for f in result.findings]
-        assert "bro" not in off_tone_words
+        off_tone = [f.metadata.get("word") for f in result.findings]
+        assert "bro" not in off_tone
 
     def test_yo_does_not_match_your(self):
-        """Word boundary fix: 'yo' should not match inside 'your'."""
+        """Word boundary fix: 'yo' must NOT match inside 'your'."""
         v = BrandVoiceScorer()
         result = v.validate("Your professional results exceed expectations.")
-        off_tone_words = [f.metadata.get("word") for f in result.findings]
-        assert "yo" not in off_tone_words
+        off_tone = [f.metadata.get("word") for f in result.findings]
+        assert "yo" not in off_tone
 
     def test_yo_matches_standalone(self):
         v = BrandVoiceScorer()
         result = v.validate("Yo check this out dude.")
-        off_tone_words = [f.metadata.get("word") for f in result.findings]
-        assert "yo" in off_tone_words
+        off_tone = [f.metadata.get("word") for f in result.findings]
+        assert "yo" in off_tone
+
+    def test_failing_score_produces_error_finding(self):
+        v = BrandVoiceScorer(config={"brand_voice_target_score": 99.0})
+        result = v.validate("Just some text.")
+        assert result.passed is False
+        assert any(f.severity.value == "error" for f in result.findings)
+
+    def test_high_target_score_fails_average_text(self):
+        v = BrandVoiceScorer(config={"brand_voice_target_score": 95.0})
+        result = v.validate("Simple test content here.")
+        assert result.passed is False

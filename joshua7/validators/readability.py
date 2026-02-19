@@ -1,8 +1,7 @@
-"""Readability Scorer — Flesch-Kincaid readability gate."""
+"""Readability Scorer — Flesch-Kincaid readability gate with grade-level reporting."""
 
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 import textstat
@@ -10,18 +9,16 @@ import textstat
 from joshua7.models import Severity, ValidationFinding, ValidationResult
 from joshua7.validators.base import BaseValidator
 
-logger = logging.getLogger(__name__)
-
 
 class ReadabilityScorer(BaseValidator):
-    """Ensure content falls within an acceptable readability range."""
+    """Ensure content falls within an acceptable Flesch readability range."""
 
     name = "readability"
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
-        self._min_score = self.config.get("readability_min_score", 30.0)
-        self._max_score = self.config.get("readability_max_score", 80.0)
+        self._min_score = float(self.config.get("readability_min_score", 30.0))
+        self._max_score = float(self.config.get("readability_max_score", 80.0))
 
     def validate(self, text: str) -> ValidationResult:
         findings: list[ValidationFinding] = []
@@ -76,9 +73,11 @@ class ReadabilityScorer(BaseValidator):
                 )
             )
 
+        clamped = max(0.0, min(100.0, fk_score))
+
         return ValidationResult(
             validator_name=self.name,
             passed=passed,
-            score=round(fk_score, 1),
+            score=round(clamped, 1),
             findings=findings,
         )

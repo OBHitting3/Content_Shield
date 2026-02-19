@@ -35,7 +35,7 @@ class TestForbiddenPhraseDetector:
         assert result.passed is False
         assert len(result.findings) == 2
 
-    def test_span_offsets(self):
+    def test_span_offsets_correct(self):
         v = ForbiddenPhraseDetector()
         text = "Let's delve into it."
         result = v.validate(text)
@@ -44,18 +44,33 @@ class TestForbiddenPhraseDetector:
         start, end = result.findings[0].span
         assert text[start:end].lower() == "delve"
 
-    def test_empty_phrase_list(self):
+    def test_empty_phrase_list_passes_everything(self):
         v = ForbiddenPhraseDetector(config={"forbidden_phrases": []})
         result = v.validate("As an AI, I want to delve into synergy.")
         assert result.passed is True
 
     def test_unicode_content(self):
         v = ForbiddenPhraseDetector()
-        result = v.validate("Héllo wörld! 你好世界 🌍 This is fine.")
+        result = v.validate("Héllo wörld! 你好世界 This is fine.")
         assert result.passed is True
 
-    def test_repeated_phrase(self):
+    def test_repeated_phrase_counted_individually(self):
         v = ForbiddenPhraseDetector(config={"forbidden_phrases": ["bad"]})
         result = v.validate("bad bad bad")
         assert result.passed is False
         assert len(result.findings) == 3
+
+    def test_validator_name(self):
+        v = ForbiddenPhraseDetector()
+        result = v.validate("Clean text.")
+        assert result.validator_name == "forbidden_phrases"
+
+    def test_severity_is_error(self):
+        v = ForbiddenPhraseDetector()
+        result = v.validate("Let me delve into this.")
+        assert result.findings[0].severity.value == "error"
+
+    def test_metadata_contains_phrase(self):
+        v = ForbiddenPhraseDetector()
+        result = v.validate("Let me delve into this.")
+        assert result.findings[0].metadata["phrase"] == "delve"

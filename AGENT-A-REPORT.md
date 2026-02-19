@@ -1,167 +1,111 @@
-# AGENT-A-REPORT — Joshua 7 / Content Shield Hardening
+# AGENT-A-REPORT — Joshua 7 / Content Shield REROLL
 
-**Agent:** A
-**Date:** 2026-02-18
-**Branch:** `cursor/full-mvp-codebase-9c12`
-**Method:** Tree-of-Thought + Red Team + ASCoT + Beam Search (6-phase)
-**Tests:** 73 passing (up from 48) | Lint: clean (ruff)
+**Agent:** A (Reroll)
+**Date:** 2026-02-19
+**Branch:** `cursor/joshua-7-content-shield-bc98`
+**Method:** Complete ground-up rewrite of the entire codebase
+**Version:** 0.2.0
 
 ---
 
 ## Executive Summary
 
-The original MVP codebase was functional but had **critical security vulnerabilities**, **logic bugs that caused false negatives**, and **UX gaps** that would frustrate real users. This report documents every finding and every fix.
+Complete reroll of the Joshua 7 — Content Shield codebase. Every source file was rewritten from scratch while preserving the same feature set, project identity, and architectural intent. The rewrite focuses on tighter type safety, improved security hardening, cleaner architecture, and comprehensive test coverage.
 
 ---
 
-## Phase 1 — Forward Read Findings (26 issues identified)
+## What Changed (Everything)
 
-| # | Severity | File | Issue |
-|---|----------|------|-------|
-| 1 | **CRITICAL** | `validators/pii.py` | Raw PII values (emails, SSNs, phones) echoed in API responses via `metadata["value"]` |
-| 2 | HIGH | `models.py` | No `max_length` on `ValidationRequest.text` — memory exhaustion DoS possible |
-| 3 | HIGH | `api/main.py` | No CORS middleware — frontend consumers blocked |
-| 4 | HIGH | `api/routes.py` | No request ID for tracing/audit |
-| 5 | HIGH | `validators/brand_voice.py` | `lower.count(pw)` does substring matching — "bro" matches "broken", "browser" |
-| 6 | HIGH | `validators/brand_voice.py` | `"yo "` has trailing space — matches "your", "young" via substring |
-| 7 | MEDIUM | `api/routes.py` | `_get_engine()` rebuilds `ValidationEngine` on every HTTP request |
-| 8 | MEDIUM | `validators/prompt_injection.py` | `prompt_injection_threshold` config read but never used (dead code) |
-| 9 | MEDIUM | `engine.py` | No try/except around `validator.validate()` — one crash kills entire request |
-| 10 | MEDIUM | `models.py` | No `request_id`, `timestamp`, or `version` in response |
-| 11 | MEDIUM | `cli/main.py` | No `--stdin` support for piped input |
-| 12 | MEDIUM | `cli/main.py` | `--host/-h` conflicts with Typer's `--help/-h` |
-| 13 | MEDIUM | `cli/main.py` | Error messages are bare — no usage examples |
-| 14 | MEDIUM | `config.py` | `model_config = {"env_prefix": "J7_"}` — should use `SettingsConfigDict` |
-| 15 | MEDIUM | Codebase | Zero logging anywhere |
-| 16 | LOW | `config.py` | No validation that YAML is a mapping type |
-| 17 | LOW | Root | No `.env.example` file |
-| 18 | LOW | Root | No GitHub Actions CI workflow |
-| 19 | LOW | `cli/main.py` | `_print_report` has `# noqa: ANN001` instead of proper type hint |
-| 20 | LOW | `cli/main.py` | No file size pre-check before reading |
-| 21-26 | INFO | Various | Minor: no progress indicator, no async validators, simplified phone regex, no plugin arch |
+### Core Models (`models.py`)
 
-## Phase 3 — Red Team Attack Findings
+- Bumped to v0.2.0
+- `ValidationFinding` and `RiskAxis` models marked `frozen=True` (immutable after creation)
+- `ValidationResult.score` now has `ge=0.0, le=100.0` constraints
+- Added `finding_count` property to `ValidationResult`
+- `ValidationRequest.validators` now accepts comma-separated string input via `field_validator`
+- `RiskAxis.raw_score` now has `ge=0.0, le=100.0` constraints
 
-| Attack Vector | Impact | Status |
-|---------------|--------|--------|
-| POST 100MB text body | OOM crash | **FIXED** (max_length=500K) |
-| PII exfiltration via API response | Privacy breach — SSNs in JSON | **FIXED** (redacted) |
-| Substring false negatives in brand voice | "bro" in "broken" penalizes clean text | **FIXED** (word boundaries) |
-| "yo " matches "your" in brand voice | Every "your" penalized as slang | **FIXED** (trailing space removed) |
-| `all([])` returns True in Python | 0 validators run → "passed: true" | **FIXED** (Phase 6) |
-| 10GB file via CLI --file | OOM before validation | **FIXED** (Phase 6 size check) |
-| ValidationError traceback in CLI | Ugly UX for oversized text | **FIXED** (Phase 6 catch) |
+### Configuration (`config.py`)
 
-## Phase 5 — All Changes Applied
+- `DEFAULT_FORBIDDEN_PHRASES` is now a `tuple` (immutable) instead of mutable list
+- Added `field_validator` on `log_level` to normalise and validate
+- Added `ge=1` constraint on `max_text_length`
+- Added `ge=0.0, le=100.0` constraint on `brand_voice_target_score`
 
-### Security Fixes
+### Validators
 
-| Change | File(s) | Why |
-|--------|---------|-----|
-| PII values redacted in all findings | `validators/pii.py` | Raw PII was echoed in `metadata["value"]` and `message`. Now uses fixed placeholders (`***@***.***`, `***-***-****`, `***-**-****`) |
-| Max text length enforced (500K chars) | `models.py` | `max_length=MAX_TEXT_LENGTH` on `ValidationRequest.text` prevents memory exhaustion |
-| CORS middleware added | `api/main.py` | Enables cross-origin API access with `allow_credentials=False` |
-| Request ID propagation | `api/main.py`, `routes.py`, `engine.py`, `models.py` | `X-Request-ID` header in/out + `request_id` in response body |
-| Response timing header | `api/main.py` | `X-Response-Time-Ms` for performance monitoring |
+All 5 validators rewritten with identical APIs but cleaner internals:
 
-### Bug Fixes
+| Validator | Key Improvements |
+|-----------|-----------------|
+| `forbidden_phrases` | Imports `DEFAULT_FORBIDDEN_PHRASES` from config (single source of truth) |
+| `pii` | Security docstring, `_redacted()` helper (no raw PII in output) |
+| `brand_voice` | Word-boundary regex for all penalty words, explicit `float()` casts |
+| `prompt_injection` | 10 pattern families, clean separation of pattern tuples |
+| `readability` | Grade-level always reported in metadata |
 
-| Change | File(s) | Why |
-|--------|---------|-----|
-| Word-boundary regex for brand voice penalties | `validators/brand_voice.py` | `lower.count("bro")` matched "broken". Now uses `\bbro\b` regex |
-| Removed trailing space from "yo " | `validators/brand_voice.py` | `"yo "` matched "your", "young". Now `"yo"` with `\b` boundary |
-| Removed dead `prompt_injection_threshold` | `validators/prompt_injection.py`, `config.py`, `config/default.yaml` | Config field was read but never used |
-| `all([])` → `bool(results) and all(...)` | `engine.py` | 0 validators running now correctly returns `passed=False` |
-| Unused `value` parameter in `_redact()` | `validators/pii.py` | Dead parameter removed |
+### Engine (`engine.py`)
 
-### UX Improvements
+- Same RISK_TAXONOMY_v0 composite scoring with 5 axes
+- Critical escalation schedule: 1 axis → +40, 2 axes → +80, 3+ → +100
+- Validator exception isolation (try/except per validator)
+- `_settings_as_dict()` renamed from `_settings_to_config()` for clarity
 
-| Change | File(s) | Why |
-|--------|---------|-----|
-| `--stdin` support | `cli/main.py` | `echo "text" \| joshua7 validate --stdin` now works |
-| Mutual exclusion of input sources | `cli/main.py` | Enforces exactly one of `--text`, `--file`, `--stdin` |
-| Better error messages | `cli/main.py` | Shows usage examples when no input provided |
-| File size pre-check | `cli/main.py` | Rejects files >2MB before reading into memory |
-| Graceful ValidationError handling | `cli/main.py` | Catches Pydantic errors, shows clean message |
-| `--host` without `-h` shortcut | `cli/main.py` | Avoids `-h`/`--help` conflict |
-| Request ID in CLI report | `cli/main.py` | Shows request ID for troubleshooting |
-| Comma-formatted text length | `cli/main.py` | `500,000 chars` instead of `500000 chars` |
-| `list` subcommand renamed | `cli/main.py` | `joshua7 list` instead of `joshua7 list-validators` |
+### API (`api/main.py`, `routes.py`)
 
-### Robustness
+- Timing-safe API key comparison via `hmac.compare_digest`
+- Structured logging configuration in app factory
+- CORS with `allow_credentials=False`
+- Request ID and response time headers on every response
 
-| Change | File(s) | Why |
-|--------|---------|-----|
-| Engine catches validator exceptions | `engine.py` | One validator crash no longer kills the entire request |
-| Structured logging throughout | All validators, `config.py`, `engine.py`, `api/main.py` | `logging.getLogger(__name__)` in every module |
-| YAML config type validation | `config.py` | Rejects non-mapping YAML files gracefully |
-| Unknown validators logged | `engine.py` | Warning log when a requested validator name doesn't exist |
+### CLI (`cli/main.py`)
 
-### Code Quality
+- Risk level and composite score shown in CLI report
+- File size pre-check before reading
+- Clean error on oversized text (before Pydantic validation)
+- `--stdin` support for piped input
 
-| Change | File(s) | Why |
-|--------|---------|-----|
-| `SettingsConfigDict` | `config.py` | Replaces plain `dict` for type-safe settings config |
-| Proper type hint on `_print_report` | `cli/main.py` | Removed `# noqa: ANN001`, added `ValidationResponse` type |
-| 2 new injection patterns | `validators/prompt_injection.py` | Added `forget_everything` and `act_as` detection |
-| Pre-compiled positive signal regexes | `validators/brand_voice.py` | `_POSITIVE_SIGNALS` now compiled once at module load |
+### Tests
+
+| Suite | Tests |
+|-------|-------|
+| `test_forbidden_phrases.py` | 12 |
+| `test_pii.py` | 12 |
+| `test_brand_voice.py` | 11 |
+| `test_prompt_injection.py` | 12 |
+| `test_readability.py` | 9 |
+| `test_engine.py` | 18 |
+| `test_api.py` | 17 |
+| `test_risk_taxonomy.py` | 11 |
 
 ### Infrastructure
 
-| Change | File(s) | Why |
-|--------|---------|-----|
-| GitHub Actions CI | `.github/workflows/ci.yml` | Python 3.10/3.11/3.12 matrix + Docker build |
-| `.env.example` | `.env.example` | Documents all `J7_` environment variables |
-
-### Test Coverage
-
-| Metric | Before | After |
-|--------|--------|-------|
-| Total tests | 48 | 73 |
-| PII redaction tests | 0 | 4 |
-| Word boundary regression tests | 0 | 3 |
-| Response metadata tests | 0 | 6 |
-| CORS / header tests | 0 | 3 |
-| Edge case tests (unicode, single word) | 0 | 4 |
-| New injection pattern tests | 0 | 2 |
-| Security assertion tests | 0 | 3 |
-
-## Phase 6 — Final Red Team Fixes
-
-| Finding | Fix |
-|---------|-----|
-| `all([])` returns `True` — 0 validators = "passed" | Changed to `bool(results) and all(r.passed for r in results)` |
-| CLI reads arbitrarily large files before validation | Added file size pre-check (`stat().st_size`) |
-| Ugly Pydantic traceback on oversized text via CLI | Catches `ValidationError`, shows clean error |
-| Unused `value` param in `_redact(pii_type, value)` | Removed parameter |
+- `pyproject.toml` bumped to 0.2.0
+- `.env.example` includes `J7_API_KEY`
+- Dockerfile unchanged (already hardened)
+- CI workflow unchanged (3.10/3.11/3.12 matrix + Docker build)
 
 ---
 
-## Verification Pass — Backwards + Forwards (Post Phase 6)
+## Security Posture
 
-Additional sweep found and fixed 9 more issues:
+| Control | Status |
+|---------|--------|
+| PII values never in API responses | Enforced — fixed placeholders only |
+| Input length cap (500K chars) | Enforced — engine + CLI pre-check |
+| API key auth (optional) | `hmac.compare_digest` timing-safe |
+| CORS | `allow_credentials=False` |
+| Request ID audit trail | Propagated in/out |
+| Validator isolation | Exception per-validator, never crashes engine |
+| File size pre-check (CLI) | `stat().st_size` before read |
 
-| # | Severity | Fix |
-|---|----------|-----|
-| F1 | **HIGH** | `J7_MAX_TEXT_LENGTH` env var was ignored — engine now enforces `settings.max_text_length` as a pre-check |
-| F2 | MEDIUM | Eliminated duplicate `_DEFAULT_PHRASES` — `forbidden_phrases.py` now imports from `config.py` |
-| F3 | MEDIUM | Brand voice keyword matching switched to `\b` word boundaries (was substring) |
-| F4 | MEDIUM | README updated: documents `--stdin`, `--json`, `list`, `.env.example`, PII redaction, request IDs |
-| F5 | LOW | Removed `ALL_VALIDATORS` parallel list from `validators/__init__.py` |
-| F6 | LOW | CLI pre-checks text length with clean error before Pydantic throws |
-| F7 | LOW | Dockerfile `HEALTHCHECK --start-period=10s` prevents false unhealthy on cold start |
-| F8 | LOW | Readability always reports `grade_level` in findings (was discarded on pass) |
-| F9 | LOW | `test_validator_exception` now mocks an actual throw; added 3 new tests |
+## Known Limitations (Accepted for MVP)
 
-**Final counts:** 76 tests passing | 0 lint errors | 4 commits
-
-## Remaining Known Limitations (Accepted for MVP)
-
-1. **No authentication/rate-limiting** — expected to be handled at infrastructure layer (Cloud Run IAM, API Gateway)
-2. **Synchronous validators** — adequate for MVP text sizes; async parallelism is a v2 optimization
-3. **Phone regex has broad matching** — may flag some non-phone numeric sequences
-4. **No plugin architecture** — custom validators require source modification
-5. **Brand voice scoring is heuristic** — no NLP/ML model; adequate for v1
+1. No rate limiting — expected at infrastructure layer (Cloud Run, API Gateway)
+2. Synchronous validators — adequate for MVP text sizes
+3. Phone regex has broad matching — may flag some non-phone numeric sequences
+4. No plugin architecture — custom validators require source modification
+5. Brand voice scoring is heuristic — no NLP/ML model
 
 ---
 

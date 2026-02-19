@@ -18,9 +18,15 @@ logger = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
+    """Build and configure the Joshua 7 FastAPI application."""
     settings = get_settings()
 
-    app = FastAPI(
+    logging.basicConfig(
+        level=getattr(logging, settings.log_level.upper(), logging.INFO),
+        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    )
+
+    application = FastAPI(
         title=settings.app_name,
         version=__version__,
         description="Pre-publication AI content validation engine",
@@ -28,7 +34,7 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
     )
 
-    app.add_middleware(
+    application.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
         allow_credentials=False,
@@ -36,12 +42,12 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    app.state.settings = settings
-    app.state.engine = ValidationEngine(settings=settings)
+    application.state.settings = settings
+    application.state.engine = ValidationEngine(settings=settings)
 
-    app.include_router(router, prefix="/api/v1")
+    application.include_router(router, prefix="/api/v1")
 
-    @app.middleware("http")
+    @application.middleware("http")
     async def add_request_context(request: Request, call_next) -> Response:  # noqa: ANN001
         request_id = request.headers.get("X-Request-ID", uuid.uuid4().hex)
         request.state.request_id = request_id
@@ -52,11 +58,11 @@ def create_app() -> FastAPI:
         response.headers["X-Response-Time-Ms"] = str(elapsed_ms)
         return response
 
-    @app.get("/health")
+    @application.get("/health")
     async def health() -> dict[str, str]:
         return {"status": "ok", "version": __version__}
 
-    return app
+    return application
 
 
 app = create_app()

@@ -37,24 +37,45 @@ _REGISTRY: dict[str, type[BaseValidator]] = {
 # ---------------------------------------------------------------------------
 # RISK_TAXONOMY_v0 — weighted composite scoring
 # ---------------------------------------------------------------------------
-_SEVERITY_POINTS = {
-    Severity.INFO: 0,
-    Severity.WARNING: 15,
-    Severity.ERROR: 40,
-    Severity.CRITICAL: 80,
+
+_SEVERITY_POINTS: dict[Severity, float] = {
+    Severity.INFO: 0.0,
+    Severity.WARNING: 15.0,
+    Severity.ERROR: 40.0,
+    Severity.CRITICAL: 80.0,
 }
 
 _RISK_AXES: list[dict[str, Any]] = [
-    {"axis": "A", "label": "Synthetic Artifacts", "weight": 0.30,
-     "validators": ["forbidden_phrases", "readability"]},
-    {"axis": "B", "label": "Hallucination / Factual Integrity", "weight": 0.25,
-     "validators": ["readability"]},
-    {"axis": "C", "label": "Brand Safety / GARM", "weight": 0.20,
-     "validators": ["brand_voice"]},
-    {"axis": "D", "label": "Regulatory Compliance / PII+Disclosure", "weight": 0.15,
-     "validators": ["pii"]},
-    {"axis": "E", "label": "Adversarial Robustness / Injection", "weight": 0.10,
-     "validators": ["prompt_injection"]},
+    {
+        "axis": "A",
+        "label": "Synthetic Artifacts",
+        "weight": 0.30,
+        "validators": ["forbidden_phrases", "readability"],
+    },
+    {
+        "axis": "B",
+        "label": "Hallucination / Factual Integrity",
+        "weight": 0.25,
+        "validators": ["readability"],
+    },
+    {
+        "axis": "C",
+        "label": "Brand Safety / GARM",
+        "weight": 0.20,
+        "validators": ["brand_voice"],
+    },
+    {
+        "axis": "D",
+        "label": "Regulatory Compliance / PII+Disclosure",
+        "weight": 0.15,
+        "validators": ["pii"],
+    },
+    {
+        "axis": "E",
+        "label": "Adversarial Robustness / Injection",
+        "weight": 0.10,
+        "validators": ["prompt_injection"],
+    },
 ]
 
 
@@ -72,7 +93,7 @@ def _axis_score_from_results(
     validator_names: list[str],
     results_map: dict[str, ValidationResult],
 ) -> float:
-    """Derive a 0-100 raw axis score from the mapped validators' findings."""
+    """Derive a 0–100 raw axis score from the mapped validators' findings."""
     total_points = 0.0
     contributor_count = 0
 
@@ -91,7 +112,7 @@ def _axis_score_from_results(
             continue
 
         finding_points = sum(
-            _SEVERITY_POINTS.get(f.severity, 0) for f in result.findings
+            _SEVERITY_POINTS.get(f.severity, 0.0) for f in result.findings
         )
         total_points += min(finding_points, 100.0)
 
@@ -101,13 +122,13 @@ def _axis_score_from_results(
 
 
 def _critical_escalation(results: list[ValidationResult]) -> float:
-    """Return an escalation bonus based on CRITICAL-severity findings.
+    """Return an escalation bonus for CRITICAL-severity findings.
 
-    CRITICAL findings represent hard failures (PII leaks, active injection
-    attacks) that must dominate the composite regardless of axis weight.
+    CRITICAL findings (PII leaks, injection attacks) must dominate the
+    composite score regardless of axis weight.
 
-    Escalation schedule:
-        1 CRITICAL axis  → +40  (guarantees YELLOW, likely ORANGE with base)
+    Schedule:
+        1 CRITICAL axis  → +40  (guarantees YELLOW)
         2 CRITICAL axes  → +80  (guarantees RED with any non-zero base)
         3+ CRITICAL axes → +100 (hard RED)
     """
@@ -134,7 +155,7 @@ def _critical_escalation(results: list[ValidationResult]) -> float:
 
 
 def compute_risk_taxonomy(results: list[ValidationResult]) -> RiskTaxonomy:
-    """Build a RISK_TAXONOMY_v0 from a list of validator results."""
+    """Build a RISK_TAXONOMY_v0 composite from a list of validator results."""
     results_map = {r.validator_name: r for r in results}
     axes: list[RiskAxis] = []
     weighted_sum = 0.0
@@ -143,13 +164,15 @@ def compute_risk_taxonomy(results: list[ValidationResult]) -> RiskTaxonomy:
         raw = _axis_score_from_results(axis_def["validators"], results_map)
         weighted = raw * axis_def["weight"]
         weighted_sum += weighted
-        axes.append(RiskAxis(
-            axis=axis_def["axis"],
-            label=axis_def["label"],
-            weight=axis_def["weight"],
-            raw_score=round(raw, 1),
-            weighted_score=round(weighted, 2),
-        ))
+        axes.append(
+            RiskAxis(
+                axis=axis_def["axis"],
+                label=axis_def["label"],
+                weight=axis_def["weight"],
+                raw_score=round(raw, 1),
+                weighted_score=round(weighted, 2),
+            )
+        )
 
     escalation = _critical_escalation(results)
     composite = round(min(weighted_sum + escalation, 100.0), 1)
@@ -170,11 +193,11 @@ class ValidationEngine:
         self._build_validators()
 
     def _build_validators(self) -> None:
-        config = self._settings_to_config()
+        config = self._settings_as_dict()
         for name, cls in _REGISTRY.items():
             self._validators[name] = cls(config=config)
 
-    def _settings_to_config(self) -> dict[str, Any]:
+    def _settings_as_dict(self) -> dict[str, Any]:
         return self._settings.model_dump()
 
     @property
@@ -189,6 +212,7 @@ class ValidationEngine:
         """Execute requested validators and return aggregated response."""
         rid = request_id or uuid.uuid4().hex
         max_len = self._settings.max_text_length
+
         if len(request.text) > max_len:
             return ValidationResponse(
                 request_id=rid,
@@ -225,7 +249,7 @@ class ValidationEngine:
         for name in selected:
             validator = self._validators[name]
             if name in request.config_overrides:
-                merged = {**self._settings_to_config(), **request.config_overrides[name]}
+                merged = {**self._settings_as_dict(), **request.config_overrides[name]}
                 validator = _REGISTRY[name](config=merged)
             try:
                 result = validator.validate(request.text)
@@ -267,7 +291,7 @@ class ValidationEngine:
     def _resolve_validators(self, names: list[str]) -> list[str]:
         if "all" in names:
             return list(self._validators.keys())
-        resolved = []
+        resolved: list[str] = []
         for n in names:
             if n in self._validators:
                 resolved.append(n)

@@ -1,4 +1,4 @@
-"""Pydantic data models for Joshua 7."""
+"""Pydantic data models for Joshua 7 request/response contracts."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 MAX_TEXT_LENGTH = 500_000
 
@@ -23,6 +23,8 @@ class Severity(str, Enum):
 
 class ValidationFinding(BaseModel):
     """A single finding produced by a validator."""
+
+    model_config = {"frozen": True}
 
     validator_name: str
     severity: Severity
@@ -41,9 +43,15 @@ class ValidationResult(BaseModel):
     passed: bool
     score: float | None = Field(
         default=None,
-        description="Optional numeric score (0-100) from scoring validators.",
+        ge=0.0,
+        le=100.0,
+        description="Optional numeric score (0–100) from scoring validators.",
     )
     findings: list[ValidationFinding] = Field(default_factory=list)
+
+    @property
+    def finding_count(self) -> int:
+        return len(self.findings)
 
 
 class ValidationRequest(BaseModel):
@@ -57,22 +65,31 @@ class ValidationRequest(BaseModel):
     )
     validators: list[str] = Field(
         default=["all"],
-        description='List of validator names to run, or ["all"].',
+        description='Validator names to run, or ["all"].',
     )
     config_overrides: dict[str, Any] = Field(
         default_factory=dict,
         description="Per-request config overrides keyed by validator name.",
     )
 
+    @field_validator("validators", mode="before")
+    @classmethod
+    def _normalise_validators(cls, v: Any) -> list[str]:
+        if isinstance(v, str):
+            return [s.strip() for s in v.split(",") if s.strip()]
+        return v
+
 
 class RiskAxis(BaseModel):
     """Score for a single axis of the RISK_TAXONOMY_v0."""
 
+    model_config = {"frozen": True}
+
     axis: str
     label: str
     weight: float
-    raw_score: float = Field(description="Raw axis score 0-100 (100 = maximum risk).")
-    weighted_score: float = Field(description="raw_score * weight contribution.")
+    raw_score: float = Field(ge=0.0, le=100.0, description="Raw axis score 0–100 (100 = max risk).")
+    weighted_score: float = Field(description="raw_score × weight contribution.")
 
 
 class RiskTaxonomy(BaseModel):
@@ -86,7 +103,7 @@ class RiskTaxonomy(BaseModel):
     )
     risk_level: str = Field(
         default="GREEN",
-        description="GREEN (0-19) | YELLOW (20-49) | ORANGE (50-79) | RED (80-100).",
+        description="GREEN (0–19) | YELLOW (20–49) | ORANGE (50–79) | RED (80–100).",
     )
     axes: list[RiskAxis] = Field(default_factory=list)
 
@@ -100,7 +117,7 @@ class ValidationResponse(BaseModel):
     )
     timestamp: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat(),
-        description="ISO-8601 UTC timestamp of this response.",
+        description="ISO-8601 UTC timestamp.",
     )
     version: str = Field(default="", description="Engine version.")
     passed: bool = Field(description="True only if every validator passed.")

@@ -63,6 +63,29 @@ curl -X POST http://localhost:8000/api/v1/validate \
 
 Every response includes `request_id`, `timestamp`, `version`, and `X-Response-Time-Ms` header.
 
+## RISK_TAXONOMY_v0
+
+Every validation response includes a composite risk assessment:
+
+| Level | Score Range | Meaning |
+|-------|------------|---------|
+| GREEN | 0–19 | Low risk — content is clean |
+| YELLOW | 20–49 | Moderate risk — review recommended |
+| ORANGE | 50–79 | High risk — likely needs revision |
+| RED | 80–100 | Critical risk — do not publish |
+
+Five weighted axes:
+
+| Axis | Label | Weight |
+|------|-------|--------|
+| A | Synthetic Artifacts | 30% |
+| B | Hallucination / Factual Integrity | 25% |
+| C | Brand Safety / GARM | 20% |
+| D | Regulatory Compliance / PII+Disclosure | 15% |
+| E | Adversarial Robustness / Injection | 10% |
+
+CRITICAL findings (PII leaks, injection attacks) trigger escalation bonuses that override axis weights.
+
 ## Configuration
 
 Settings are loaded from (in priority order):
@@ -71,6 +94,15 @@ Settings are loaded from (in priority order):
 3. Built-in defaults
 
 See `.env.example` for all available environment variables.
+
+## Security
+
+- PII values are **always redacted** in API responses — raw emails, SSNs, and phone numbers are never echoed back.
+- Input text is capped at a configurable maximum (default 500K chars) to prevent memory exhaustion.
+- API key authentication via `X-API-Key` header (set `J7_API_KEY` env var to enable).
+- API key comparison uses timing-safe `hmac.compare_digest`.
+- CORS middleware is enabled with `allow_credentials=False`.
+- Request IDs are propagated for audit trails.
 
 ## Stack
 
@@ -97,13 +129,6 @@ joshua7/
 └── cli/
     └── main.py        # Typer CLI entry point
 ```
-
-## Security
-
-- PII values are **always redacted** in API responses — raw emails, SSNs, and phone numbers are never echoed back.
-- Input text is capped at a configurable maximum (default 500K chars) to prevent memory exhaustion.
-- CORS middleware is enabled with `allow_credentials=False`.
-- Request IDs are propagated for audit trails.
 
 ## Docker
 

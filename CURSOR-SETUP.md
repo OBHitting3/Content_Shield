@@ -76,6 +76,27 @@ MCP servers live in `.cursor/mcp.json`. Keys go in env vars, not in the file.
 
 Use a wrapper script or Doppler to inject env vars instead of hardcoding. See `.cursor/mcp.json` in this repo.
 
+### Notion MCP (hosted)
+
+Notion provides a **remote** MCP server (OAuth). No API token in config.
+
+1. This repo includes Notion in `.cursor/mcp.json`. If you prefer **only your machine**, use Cursor **Settings → MCP → Add new global MCP server** and paste the same block, or merge the `notion` entry into your user MCP config.
+2. **Restart Cursor** after saving.
+3. The first time a Notion tool runs, complete the **OAuth** flow to connect your workspace.
+
+Official guide: [Connecting to Notion MCP](https://developers.notion.com/docs/get-started-with-mcp).
+
+**Alternative:** In the Notion app: **Settings → Connections → Notion MCP** → pick Cursor and finish OAuth.
+
+If Cursor does not accept remote MCP URLs on your build, use Notion’s **stdio bridge** (requires Node/`npx`):
+
+```json
+"notion": {
+  "command": "npx",
+  "args": ["-y", "mcp-remote", "https://mcp.notion.com/mcp"]
+}
+```
+
 ---
 
 ## Quick Reference
